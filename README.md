@@ -2,7 +2,7 @@
 
 A scroll-driven companion resume site. Single static HTML file, no build step.
 
-**Live:** add your Vercel URL here.
+**Live:** https://resume-companion-seven.vercel.app
 
 ## Structure
 
