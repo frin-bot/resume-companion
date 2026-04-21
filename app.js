@@ -138,6 +138,26 @@ function renderStatic() {
     </div>
   `).join('');
 
+  document.getElementById('highlights-list').innerHTML = (m.highlights || []).map(h => `
+    <div class="highlight-card">
+      <div class="highlight-year">${h.year}</div>
+      <div>
+        <div class="highlight-title">${h.title}</div>
+        <div class="highlight-body">${h.body}</div>
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('certs-list').innerHTML = (m.certifications || []).map(c => `
+    <div class="cert">
+      <div class="cert-main">
+        <div class="cert-title">${c.title}</div>
+        <div class="cert-org">${c.org}</div>
+      </div>
+      <div class="cert-year">${c.year}</div>
+    </div>
+  `).join('');
+
   document.getElementById('langs').innerHTML = m.languages.map(l => `
     <div class="lang">
       <div class="lang-name">${l.name}</div>
@@ -351,13 +371,13 @@ function updateScene() {
   const svg = document.getElementById('usmap');
   svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
 
-  // Year ticker
-  const panT = smoothstep(clamp((subProg - 0.35) / 0.65, 0, 1));
+  // Year ticker — linear progression from current start to next start across subProg;
+  // freeze at endYear on the last stop.
   let displayYear;
   if (activeIdx >= n - 1) {
     displayYear = TIMELINE[n - 1].endYear;
   } else {
-    displayYear = Math.round(lerp(currentItem.endYear, nextItem.startYear, panT));
+    displayYear = Math.floor(lerp(currentItem.startYear, nextItem.startYear, subProg));
   }
   document.getElementById('year-big').textContent = displayYear;
 
@@ -493,7 +513,19 @@ function setSectionHeight() {
 
 let US_STATES_GEOJSON = null;
 
+function initThemeToggle() {
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    if (next === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    else document.documentElement.removeAttribute('data-theme');
+    try { localStorage.setItem('theme', next); } catch (_) {}
+  });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  initThemeToggle();
   US_STATES_GEOJSON = await fetch('us-states.geojson').then(r => r.json());
   renderStatic();
   setSectionHeight();

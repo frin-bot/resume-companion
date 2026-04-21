@@ -8,6 +8,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script>
+    (function(){
+      try {
+        var stored = localStorage.getItem('theme');
+        var dark = stored ? stored === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+      } catch (_) {}
+    })();
+  </script>
 </head>
 <body>
 
@@ -49,7 +58,7 @@
   <p class="summary-text" id="summary-text"></p>
 
   <div class="competencies">
-    <div class="section-label tight">
+    <div class="section-label">
       <span class="num">02</span>
       <span class="lbl">Core Competencies</span>
     </div>
@@ -61,7 +70,7 @@
 <section id="experience" class="experience">
   <div class="exp-sticky">
     <div class="exp-chrome">
-      <div class="section-label ghost">
+      <div class="section-label">
         <span class="num">03</span>
         <span class="lbl">Professional Experience &amp; Education</span>
       </div>
@@ -108,9 +117,30 @@
     <span class="lbl">Technical Skills &amp; Tools</span>
   </div>
   <div class="skills-grid" id="skills-grid"></div>
+</section>
 
-  <div class="section-label tight">
+<!-- HIGHLIGHTS -->
+<section class="highlights">
+  <div class="section-label">
     <span class="num">05</span>
+    <span class="lbl">Highlights</span>
+  </div>
+  <div class="highlights-list" id="highlights-list"></div>
+</section>
+
+<!-- CERTIFICATIONS -->
+<section class="certifications">
+  <div class="section-label">
+    <span class="num">06</span>
+    <span class="lbl">Certifications</span>
+  </div>
+  <div class="certs-list" id="certs-list"></div>
+</section>
+
+<!-- LANGUAGES -->
+<section class="languages">
+  <div class="section-label">
+    <span class="num">07</span>
     <span class="lbl">Languages</span>
   </div>
   <div class="langs" id="langs"></div>
@@ -119,7 +149,7 @@
 <!-- CONTACT -->
 <section class="contact">
   <div class="section-label">
-    <span class="num">06</span>
+    <span class="num">08</span>
     <span class="lbl">Contact</span>
   </div>
   <div class="contact-big" id="contact-big"></div>
@@ -132,6 +162,16 @@
     <span>Companion site · built scroll-first</span>
   </div>
 </section>
+
+<button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode">
+  <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="4"/>
+    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+  </svg>
+  <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+  </svg>
+</button>
 
 <script src="resume-data.js"></script>
 <script src="app.js"></script>

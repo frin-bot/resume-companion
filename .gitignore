@@ -19,3 +19,5 @@ Thumbs.db
 # If you ever add a build step
 node_modules/
 dist/
+
+.vercel
