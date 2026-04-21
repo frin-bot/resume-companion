@@ -2,7 +2,7 @@
 
 A scroll-driven companion resume site. Single static HTML file, no build step.
 
-**Live:** https://resume-companion-seven.vercel.app
+**Live:** https://www.efrain.me
 
 ## Structure
 
