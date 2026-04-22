@@ -782,7 +782,9 @@ function initLogoEasterEgg() {
     captureObstacles();
     if (reset) { x = 0; y = 0; vx = 0; vy = 0; angle = 0; firstFloorHit = true; }
     running = true;
-    setFace(FACE_SHOCKED);
+    // Only show the shocked face on a fresh fall. When the loop resumes due to
+    // tilt input after settling, keep whichever face is already showing (sleep).
+    if (reset) setFace(FACE_SHOCKED);
     logo.style.transition = 'none';
     let last = performance.now();
     const tick = (now) => {
