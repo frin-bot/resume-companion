@@ -42,9 +42,9 @@
 
 html { transition: background 200ms ease, color 200ms ease; }
 
-.theme-toggle {
+.theme-toggle,
+.back-to-top {
   position: fixed;
-  right: 20px;
   bottom: 20px;
   width: 48px;
   height: 48px;
@@ -57,12 +57,27 @@ html { transition: background 200ms ease, color 200ms ease; }
   align-items: center;
   justify-content: center;
   z-index: 100;
-  transition: background 200ms ease, color 200ms ease, transform 200ms ease;
+  transition: background 200ms ease, color 200ms ease, transform 200ms ease, opacity 200ms ease;
   box-shadow: 0 8px 24px -8px rgba(0,0,0,0.35);
 }
-.theme-toggle:hover { background: var(--accent); color: #fff; transform: translateY(-1px); }
-.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.theme-toggle svg { width: 20px; height: 20px; display: block; }
+.theme-toggle { right: 80px; }
+.back-to-top {
+  right: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+}
+.back-to-top.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.theme-toggle:hover,
+.back-to-top.visible:hover { background: var(--accent); color: #fff; transform: translateY(-1px); }
+.theme-toggle:focus-visible,
+.back-to-top:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme-toggle svg,
+.back-to-top svg { width: 20px; height: 20px; display: block; }
 .theme-toggle .icon-sun { display: none; }
 .theme-toggle .icon-moon { display: block; }
 :root[data-theme="dark"] .theme-toggle .icon-sun { display: block; }

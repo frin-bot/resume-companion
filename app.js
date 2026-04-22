@@ -572,8 +572,20 @@ function initThemeToggle() {
   });
 }
 
+function initBackToTop() {
+  const btn = document.getElementById('back-to-top');
+  if (!btn) return;
+  const sync = () => btn.classList.toggle('visible', window.scrollY > 400);
+  sync();
+  window.addEventListener('scroll', sync, { passive: true });
+  btn.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   initThemeToggle();
+  initBackToTop();
   const [statesData, countiesData] = await Promise.all([
     fetch('us-states.geojson').then(r => r.json()),
     fetch('counties.geojson').then(r => r.json()).catch(() => null),
