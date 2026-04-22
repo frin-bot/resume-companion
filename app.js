@@ -100,6 +100,7 @@ function renderStatic() {
   document.getElementById('hero-title-line').textContent = m.titleLine;
 
   const heroMeta = document.getElementById('hero-meta');
+  const phoneHref = 'tel:+1' + m.phone.replace(/\D/g, '');
   heroMeta.innerHTML = `
     <div>
       <div class="meta-label">Based in</div>
@@ -107,12 +108,12 @@ function renderStatic() {
     </div>
     <div>
       <div class="meta-label">Contact</div>
-      <div class="meta-val">${m.email}</div>
-      <div class="meta-val dim">${m.phone}</div>
+      <div class="meta-val"><a href="mailto:${m.email}">${m.email}</a></div>
+      <div class="meta-val dim"><a href="${phoneHref}">${m.phone}</a></div>
     </div>
     <div>
       <div class="meta-label">Profile</div>
-      <div class="meta-val">${m.linkedin}</div>
+      <div class="meta-val"><a href="https://${m.linkedin}" target="_blank" rel="noopener">${m.linkedin}</a></div>
     </div>
     <div>
       <div class="meta-label">Languages</div>
@@ -139,12 +140,12 @@ function renderStatic() {
   `).join('');
 
   document.getElementById('highlights-list').innerHTML = (m.highlights || []).map(h => `
-    <div class="highlight-card">
-      <div class="highlight-year">${h.year}</div>
-      <div>
+    <div class="highlight">
+      <div class="highlight-main">
         <div class="highlight-title">${h.title}</div>
         <div class="highlight-body">${h.body}</div>
       </div>
+      <div class="highlight-year">${h.year}</div>
     </div>
   `).join('');
 
@@ -212,6 +213,18 @@ function buildMap() {
     frag.appendChild(p);
   }
   statesG.appendChild(frag);
+
+  if (COUNTIES_GEOJSON) {
+    const countiesG = document.getElementById('counties-g');
+    const countyBuilt = MAP.buildStatesSvg(COUNTIES_GEOJSON);
+    const cFrag = document.createDocumentFragment();
+    for (const c of countyBuilt.paths) {
+      const p = document.createElementNS(SVG_NS, 'path');
+      p.setAttribute('d', c.d);
+      cFrag.appendChild(p);
+    }
+    countiesG.appendChild(cFrag);
+  }
 
   // Build pin groups (one per timeline item, initially hidden via display)
   const pinsG = document.getElementById('pins-g');
@@ -345,10 +358,11 @@ function updateScene() {
   const pCurProj = MAP.project(currentItem.coord);
   const pNextProj = MAP.project(nextItem.coord);
 
-  // 3-phase zoom viewBox
-  const zoomTight = CONFIG.pinZoomTight;
-  const vbCurTight = MAP.viewBoxFor(pCurProj, zoomTight, [0, 0]);
-  const vbNextTight = MAP.viewBoxFor(pNextProj, zoomTight, [0, 0]);
+  // 3-phase zoom viewBox — per-stop zoom override, fall back to CONFIG.pinZoomTight
+  const currentZoom = currentItem.zoom || CONFIG.pinZoomTight;
+  const nextZoom = nextItem.zoom || CONFIG.pinZoomTight;
+  const vbCurTight = MAP.viewBoxFor(pCurProj, currentZoom, [0, 0]);
+  const vbNextTight = MAP.viewBoxFor(pNextProj, nextZoom, [0, 0]);
   const sameCity = pCurProj[0] === pNextProj[0] && pCurProj[1] === pNextProj[1];
   const vbWide = sameCity ? vbCurTight : MAP.viewBoxForBounds(pCurProj, pNextProj, 80);
 
@@ -370,6 +384,12 @@ function updateScene() {
 
   const svg = document.getElementById('usmap');
   svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+
+  // County lines fade in when viewBox is tight (zoomed well past state level)
+  const countiesG = document.getElementById('counties-g');
+  if (countiesG) {
+    countiesG.style.opacity = String(smoothstep(clamp((80 - vb.w) / 40, 0, 1)));
+  }
 
   // Year ticker — linear progression from current start to next start across subProg;
   // freeze at endYear on the last stop.
@@ -512,6 +532,7 @@ function setSectionHeight() {
 }
 
 let US_STATES_GEOJSON = null;
+let COUNTIES_GEOJSON = null;
 
 function initThemeToggle() {
   const btn = document.getElementById('theme-toggle');
@@ -526,7 +547,12 @@ function initThemeToggle() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   initThemeToggle();
-  US_STATES_GEOJSON = await fetch('us-states.geojson').then(r => r.json());
+  const [statesData, countiesData] = await Promise.all([
+    fetch('us-states.geojson').then(r => r.json()),
+    fetch('counties.geojson').then(r => r.json()).catch(() => null),
+  ]);
+  US_STATES_GEOJSON = statesData;
+  COUNTIES_GEOJSON = countiesData;
   renderStatic();
   setSectionHeight();
   buildMap();

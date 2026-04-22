@@ -175,6 +175,8 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 }
 .meta-val { font-size: 15px; color: var(--ink); }
 .meta-val.dim { color: var(--ink-3); font-size: 13px; }
+.meta-val a { color: inherit; transition: color 200ms ease; }
+.meta-val a:hover { color: var(--accent); }
 
 .hero-scroll-hint {
   position: absolute;
@@ -342,6 +344,13 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   stroke: var(--map-stroke);
   stroke-width: 0.5;
   vector-effect: non-scaling-stroke;
+}
+.usmap .counties path {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 0.4;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
 }
 
 /* Arcs — thick style locked */
@@ -525,43 +534,36 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 }
 .highlights-list {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
 }
-.highlight-card {
-  max-width: 820px;
-  width: 100%;
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
-  padding: 48px 0;
+.highlight {
   display: grid;
-  grid-template-columns: 120px 1fr;
-  gap: 32px;
-  align-items: start;
+  grid-template-columns: 1fr auto;
+  gap: 24px;
+  align-items: baseline;
+  padding: 24px 0;
+}
+.highlight-main { display: flex; flex-direction: column; gap: 8px; }
+.highlight-title {
+  font-family: var(--ff-display);
+  font-size: clamp(18px, 2.2vw, 22px);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.highlight-body {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-3);
 }
 .highlight-year {
   font-family: var(--ff-mono);
   font-size: 12px;
   letter-spacing: 0.1em;
-  text-transform: uppercase;
   color: var(--ink-3);
-  padding-top: 8px;
-}
-.highlight-title {
-  font-family: var(--ff-display);
-  font-size: clamp(26px, 3.5vw, 36px);
-  line-height: 1.15;
-  letter-spacing: -0.02em;
-  color: var(--ink);
-}
-.highlight-body {
-  margin-top: 18px;
-  font-size: 16px;
-  line-height: 1.6;
-  color: var(--ink-2);
 }
 @media (max-width: 640px) {
-  .highlight-card { grid-template-columns: 1fr; gap: 12px; padding: 32px 0; }
-  .highlight-year { padding-top: 0; }
+  .highlight { grid-template-columns: 1fr; }
+  .highlight-year { padding-top: 4px; }
 }
 
 /* ============== CERTIFICATIONS ============== */
@@ -573,7 +575,6 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 .certs-list {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--rule);
 }
 .cert {
   display: grid;
@@ -581,7 +582,6 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   gap: 24px;
   align-items: baseline;
   padding: 24px 0;
-  border-bottom: 1px solid var(--rule);
 }
 .cert-main { display: flex; flex-direction: column; gap: 4px; }
 .cert-title {
@@ -640,8 +640,7 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 40px 0;
-  border-top: 1px solid var(--rule);
+  padding: 0 0 40px;
   border-bottom: 1px solid var(--rule);
 }
 .contact-line {
