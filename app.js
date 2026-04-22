@@ -227,8 +227,30 @@ const state = {
   railStopEls: [],
 };
 
+function computeAllPinsViewBox() {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const item of TIMELINE) {
+    const [x, y] = MAP.project(item.coord);
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+  }
+  const padding = 90;
+  minX -= padding; maxX += padding; minY -= padding; maxY += padding;
+  const w = maxX - minX, h = maxY - minY;
+  const aspect = MAP.W / MAP.H;
+  if (w / h > aspect) {
+    const nh = w / aspect;
+    const pad = (nh - h) / 2;
+    return { x: minX, y: minY - pad, w: w, h: nh };
+  }
+  const nw = h * aspect;
+  const pad = (nw - w) / 2;
+  return { x: minX - pad, y: minY, w: nw, h: h };
+}
+
 function buildMap() {
   state.built = MAP.buildStatesSvg(US_STATES_GEOJSON);
+  state.vbAllPins = computeAllPinsViewBox();
 
   const statesG = document.getElementById('states-g');
   const frag = document.createDocumentFragment();
@@ -419,7 +441,12 @@ function updateScene() {
 
   let vb;
   if (activeIdx >= n - 1) {
-    vb = vbCurTight;
+    // Final stop: hold briefly on the last pin, then zoom out to an overview
+    // that frames every pin before the next section scrolls in.
+    const target = state.vbAllPins || vbCurTight;
+    if (subProg < 0.30) vb = vbCurTight;
+    else if (subProg < 0.80) vb = tweenVB(vbCurTight, target, (subProg - 0.30) / 0.50);
+    else vb = target;
   } else if (currentItem.smoothPan) {
     // Close-neighbor transition: hold briefly, then pan at constant zoom to the
     // next pin without a zoom-out/wide phase. Both pins should share the same zoom.
@@ -537,7 +564,11 @@ function updateScene() {
   }
   const cardEl = document.getElementById('exp-card');
   const cardInT = smoothstep(clamp(subProg / 0.25, 0, 1));
-  const cardOutT = subProg > 0.78 ? smoothstep(clamp((subProg - 0.78) / 0.22, 0, 1)) : 0;
+  // On the final stop, fade the card out earlier so the end-of-map zoom-out
+  // can show every pin unobstructed.
+  const outStart = activeIdx >= n - 1 ? 0.30 : 0.78;
+  const outRange = activeIdx >= n - 1 ? 0.25 : 0.22;
+  const cardOutT = subProg > outStart ? smoothstep(clamp((subProg - outStart) / outRange, 0, 1)) : 0;
   const cardOpacity = cardInT * (1 - cardOutT);
   cardEl.style.opacity = String(cardOpacity);
 
@@ -645,6 +676,14 @@ function initCardDrag() {
 function initLogoEasterEgg() {
   const logo = document.querySelector('.floating-logo');
   if (!logo) return;
+  const img = logo.querySelector('img');
+
+  const FACE_STANDARD = 'memoji_standard_transparent.png';
+  const FACE_SHOCKED  = 'memoji_shocked_transparent.png';
+  const FACE_SLEEP    = 'memoji_sleep_transparent.png';
+  // Preload so src swaps don't flash a blank frame.
+  [FACE_SHOCKED, FACE_SLEEP].forEach(src => { const i = new Image(); i.src = src; });
+  const setFace = (src) => { if (img && img.getAttribute('src') !== src) img.setAttribute('src', src); };
 
   const GRAVITY = 2200;       // px/s²
   const BOUNCE_DAMP = 0.55;
@@ -652,43 +691,55 @@ function initLogoEasterEgg() {
   const FRICTION_PER_SEC = 0.45;  // vx *= 0.45^dt while on floor
   const STOP_VY = 30;
   const STOP_VX = 15;
-  const ROLL_RADIUS = 28;     // half of 56px logo
   const TILT_CLAMP = 40;      // degrees
 
   let x = 0, y = 0, vx = 0, vy = 0, angle = 0;
-  let floor = 0, leftWall = 0, rightWall = 0;
+  let floor = 0, leftWall = 0, rightWall = 0, rollRadius = 36;
   let rafId = null;
   let running = false;
   let fallen = false;
+  let firstFloorHit = true;
+  let baseCx = 0, baseCy = 0, iconRadius = 36;
+  let obstacles = [];
 
   let gamma = 0;
   let tiltActive = false;
 
-  // --- Tilt: on Android, add listener immediately. On iOS, require a
-  // user gesture (touchstart/click anywhere) before requestPermission fires.
+  // --- Tilt setup
+  // Desktop browsers expose DeviceOrientationEvent but never fire events
+  // without hardware — tiltActive only flips on once real data arrives.
+  // Android: listener attached immediately; events fire automatically.
+  // iOS: requestPermission() must run inside a user gesture, so we render
+  // a small tappable prompt on page load — tapping it fires the request.
+  const addOrientListener = () => {
+    window.addEventListener('deviceorientation', (e) => {
+      if (e.gamma != null) {
+        gamma = e.gamma;
+        tiltActive = true;
+        if (fallen && !running) startAnim(false);
+      }
+    });
+  };
   (function setupTilt() {
     if (typeof DeviceOrientationEvent === 'undefined') return;
-    const addListener = () => {
-      window.addEventListener('deviceorientation', (e) => {
-        if (e.gamma != null) {
-          gamma = e.gamma;
-          if (fallen && !running) startAnim(false); // resume on new input
-        }
-      });
-      tiltActive = true;
-    };
-    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-      const onGesture = async () => {
-        try {
-          const r = await DeviceOrientationEvent.requestPermission();
-          if (r === 'granted') addListener();
-        } catch (_) {}
-      };
-      document.addEventListener('touchstart', onGesture, { once: true, passive: true });
-      document.addEventListener('click', onGesture, { once: true });
-    } else {
-      addListener();
+    const needsPermission = typeof DeviceOrientationEvent.requestPermission === 'function';
+    if (!needsPermission) {
+      addOrientListener();
+      return;
     }
+    const prompt = document.getElementById('tilt-prompt');
+    if (!prompt) return;
+    prompt.hidden = false;
+    const dismiss = () => { prompt.hidden = true; };
+    prompt.addEventListener('click', async () => {
+      try {
+        const r = await DeviceOrientationEvent.requestPermission();
+        if (r === 'granted') addOrientListener();
+      } catch (_) {}
+      dismiss();
+    }, { once: true });
+    // Auto-hide after a while if the user ignores it.
+    setTimeout(dismiss, 12000);
   })();
 
   function computeBounds() {
@@ -698,10 +749,27 @@ function initLogoEasterEgg() {
     logo.style.transform = prev;
     const vh = window.innerHeight;
     const vw = window.innerWidth;
-    const centerX = rect.left + rect.width / 2;
+    baseCx = rect.left + rect.width / 2;
+    baseCy = rect.top + rect.height / 2;
+    iconRadius = rect.width / 2;
     floor = vh - 12 - (rect.top + rect.height);
-    leftWall = -(centerX - rect.width / 2 - 6);
-    rightWall = vw - centerX - rect.width / 2 - 6;
+    leftWall = -(baseCx - rect.width / 2 - 6);
+    rightWall = vw - baseCx - rect.width / 2 - 6;
+    rollRadius = iconRadius;
+  }
+
+  function captureObstacles() {
+    obstacles = [];
+    const selectors = ['#theme-toggle', '#back-to-top', '#tilt-prompt'];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (!el || el.hidden) continue;
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || parseFloat(cs.opacity) < 0.1) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      obstacles.push({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+    }
   }
 
   function applyTransform() {
@@ -711,8 +779,10 @@ function initLogoEasterEgg() {
   function startAnim(reset) {
     if (running) return;
     computeBounds();
-    if (reset) { x = 0; y = 0; vx = 0; vy = 0; angle = 0; }
+    captureObstacles();
+    if (reset) { x = 0; y = 0; vx = 0; vy = 0; angle = 0; firstFloorHit = true; }
     running = true;
+    setFace(FACE_SHOCKED);
     logo.style.transition = 'none';
     let last = performance.now();
     const tick = (now) => {
@@ -739,19 +809,49 @@ function initLogoEasterEgg() {
         if (vy > 0) {
           const vyIn = vy;
           vy = -vy * BOUNCE_DAMP;
-          // Desktop-only: each bounce kicks the icon sideways for fun.
-          // Mobile viewports either use tilt or just drop straight down.
+          // Desktop-only: FIRST floor hit kicks the icon sideways with a random
+          // impulse to simulate a tilt input. Subsequent bounces preserve the
+          // existing vx so the icon carries its momentum.
           const isMobile = matchMedia('(max-width: 800px)').matches;
-          if (!tiltActive && !isMobile) {
+          if (firstFloorHit && !tiltActive && !isMobile) {
             const magnitude = Math.min(1, Math.abs(vyIn) / 600);
             vx += (Math.random() * 2 - 1) * 900 * magnitude;
           }
+          firstFloorHit = false;
         }
       }
 
       // Walls
       if (x < leftWall) { x = leftWall; vx = Math.abs(vx) * WALL_DAMP; }
       else if (x > rightWall) { x = rightWall; vx = -Math.abs(vx) * WALL_DAMP; }
+
+      // Obstacle collisions (floating buttons). Circle-vs-rect: find closest
+      // point on the obstacle rect to the icon center, and if the gap is
+      // smaller than the icon radius, push out along the normal and reflect.
+      if (obstacles.length) {
+        const cx = baseCx + x;
+        const cy = baseCy + y;
+        for (const obs of obstacles) {
+          const px = Math.max(obs.left, Math.min(cx, obs.right));
+          const py = Math.max(obs.top, Math.min(cy, obs.bottom));
+          const dx = cx - px;
+          const dy = cy - py;
+          const dist = Math.hypot(dx, dy);
+          if (dist < iconRadius && dist > 0.001) {
+            const overlap = iconRadius - dist;
+            const nx = dx / dist;
+            const ny = dy / dist;
+            x += nx * overlap;
+            y += ny * overlap;
+            const vDotN = vx * nx + vy * ny;
+            if (vDotN < 0) {
+              const j = (1 + 0.55) * vDotN;
+              vx -= j * nx;
+              vy -= j * ny;
+            }
+          }
+        }
+      }
 
       // Floor friction
       if (y >= floor - 0.5 && Math.abs(vy) < 50) {
@@ -760,7 +860,7 @@ function initLogoEasterEgg() {
 
       // Rolling rotation — angular displacement = dx / radius (in radians)
       const dx = vx * dt;
-      angle += (dx / ROLL_RADIUS) * (180 / Math.PI);
+      angle += (dx / rollRadius) * (180 / Math.PI);
 
       applyTransform();
 
@@ -770,6 +870,7 @@ function initLogoEasterEgg() {
       if (settled && tiltIdle) {
         y = floor;
         applyTransform();
+        setFace(FACE_SLEEP);
         running = false;
         rafId = null;
         return;
@@ -783,8 +884,16 @@ function initLogoEasterEgg() {
     running = false;
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
+    setFace(FACE_STANDARD);
+    // Smoothly glide back to the original top-center position, then clear the
+    // temporary transition so the base CSS rules apply again.
+    logo.style.transition = 'transform 450ms cubic-bezier(0.4, 0, 0.2, 1)';
     logo.style.transform = '';
-    logo.style.transition = '';
+    const onEnd = () => {
+      logo.style.transition = '';
+      logo.removeEventListener('transitionend', onEnd);
+    };
+    logo.addEventListener('transitionend', onEnd);
     x = 0; y = 0; vx = 0; vy = 0; angle = 0;
   }
 
@@ -795,7 +904,7 @@ function initLogoEasterEgg() {
     if (atBottom && !fallen) {
       fallen = true;
       startAnim(true);
-    } else if (!atBottom && fallen && window.scrollY < docHeight * 0.5) {
+    } else if (!atBottom && fallen) {
       fallen = false;
       stopAnim();
     }
