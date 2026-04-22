@@ -441,11 +441,11 @@ function updateScene() {
 
   let vb;
   if (activeIdx >= n - 1) {
-    // Final stop: hold briefly on the last pin, then zoom out to an overview
-    // that frames every pin before the next section scrolls in.
+    // Final stop: hold on the last pin (card readable), then zoom out to an
+    // overview that frames every pin before the next section scrolls in.
     const target = state.vbAllPins || vbCurTight;
-    if (subProg < 0.30) vb = vbCurTight;
-    else if (subProg < 0.80) vb = tweenVB(vbCurTight, target, (subProg - 0.30) / 0.50);
+    if (subProg < 0.40) vb = vbCurTight;
+    else if (subProg < 0.85) vb = tweenVB(vbCurTight, target, (subProg - 0.40) / 0.45);
     else vb = target;
   } else if (currentItem.smoothPan) {
     // Close-neighbor transition: hold briefly, then pan at constant zoom to the
@@ -468,13 +468,19 @@ function updateScene() {
     countiesG.style.opacity = String(smoothstep(clamp((80 - vb.w) / 40, 0, 1)));
   }
 
-  // Year ticker — linear progression from current start to next start across subProg;
-  // freeze at endYear on the last stop.
+  // Year ticker — stays locked on currentItem.startYear while we're tight on
+  // the pin (card visible), then lerps to the next value once motion starts,
+  // so "landed on Hyundai" always reads 2013.
   let displayYear;
   if (activeIdx >= n - 1) {
-    displayYear = TIMELINE[n - 1].endYear;
+    // Final stop: startYear → endYear across the zoom-out.
+    const yearStart = 0.40;
+    const t = subProg < yearStart ? 0 : (subProg - yearStart) / (1 - yearStart);
+    displayYear = Math.floor(lerp(currentItem.startYear, currentItem.endYear, t));
   } else {
-    displayYear = Math.floor(lerp(currentItem.startYear, nextItem.startYear, subProg));
+    const yearStart = 0.35;
+    const t = subProg < yearStart ? 0 : (subProg - yearStart) / (1 - yearStart);
+    displayYear = Math.floor(lerp(currentItem.startYear, nextItem.startYear, t));
   }
   document.getElementById('year-big').textContent = displayYear;
 
@@ -515,11 +521,14 @@ function updateScene() {
     state.trailEls[i].style.opacity = i < activeIdx ? '0.32' : '0';
   }
 
-  // Pins
+  // Pins: once the arc has fully reached the next pin, show it even though
+  // activeIdx hasn't flipped yet — otherwise there's a blank beat between
+  // arc-arrived and pin-appears.
+  const nextReached = arcDrawT >= 1 && activeIdx < n - 1;
   const scale = vb.w / MAP.W;
   for (let i = 0; i < TIMELINE.length; i++) {
     const el = state.pinEls[i];
-    const visible = i <= activeIdx;
+    const visible = i <= activeIdx || (nextReached && i === activeIdx + 1);
     el.g.style.display = visible ? '' : 'none';
     if (!visible) continue;
     const [x, y] = MAP.project(TIMELINE[i].coord);
@@ -563,12 +572,17 @@ function updateScene() {
     state.cardIdx = activeIdx;
   }
   const cardEl = document.getElementById('exp-card');
-  const cardInT = smoothstep(clamp(subProg / 0.25, 0, 1));
-  // On the final stop, fade the card out earlier so the end-of-map zoom-out
-  // can show every pin unobstructed.
-  const outStart = activeIdx >= n - 1 ? 0.30 : 0.78;
-  const outRange = activeIdx >= n - 1 ? 0.25 : 0.22;
-  const cardOutT = subProg > outStart ? smoothstep(clamp((subProg - outStart) / outRange, 0, 1)) : 0;
+  // Card is visible only while we're tight on the pin. Snappy fade-in, a
+  // long hold for reading, then the fade-out completes exactly when the
+  // zoom-out (or final overview pull-back) begins — year ticker starts
+  // changing at the same moment.
+  const cardInEnd = 0.05;
+  const cardOutStart = activeIdx >= n - 1 ? 0.35 : 0.30;
+  const cardOutEnd = activeIdx >= n - 1 ? 0.40 : 0.35;
+  const cardInT = smoothstep(clamp(subProg / cardInEnd, 0, 1));
+  const cardOutT = subProg > cardOutStart
+    ? smoothstep(clamp((subProg - cardOutStart) / (cardOutEnd - cardOutStart), 0, 1))
+    : 0;
   const cardOpacity = cardInT * (1 - cardOutT);
   cardEl.style.opacity = String(cardOpacity);
 
@@ -580,14 +594,12 @@ function updateScene() {
   }
   state.cardVisible = cardVisible;
 
-  // Bullets reveal
+  // Bullets are fully visible whenever the card is — no per-bullet reveal,
+  // so the card arrives as one complete unit of information.
   const bulletEls = cardEl.querySelectorAll('.card-bullets li');
-  const nb = bulletEls.length;
-  const revealT = clamp(subProg / 0.75, 0, 1) * nb;
-  bulletEls.forEach((li, i) => {
-    const t = clamp(revealT - i, 0, 1);
-    li.style.opacity = String(t);
-    li.style.transform = `translateY(${(1 - t) * 8}px)`;
+  bulletEls.forEach(li => {
+    li.style.opacity = '1';
+    li.style.transform = 'none';
   });
 
   // Rail
