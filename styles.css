@@ -836,10 +836,6 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   .competencies { margin-top: 56px; }
   .section-label { padding-bottom: 20px; }
 
-  /* Rail track/progress blur into a dark bar at narrow widths — keep only the dots */
-  .rail-track,
-  .rail-progress { display: none; }
-
   .foot {
     flex-direction: column;
     align-items: flex-start;

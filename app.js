@@ -739,8 +739,10 @@ function initLogoEasterEgg() {
         if (vy > 0) {
           const vyIn = vy;
           vy = -vy * BOUNCE_DAMP;
-          // No tilt input? Each bounce kicks the icon sideways for fun.
-          if (!tiltActive) {
+          // Desktop-only: each bounce kicks the icon sideways for fun.
+          // Mobile viewports either use tilt or just drop straight down.
+          const isMobile = matchMedia('(max-width: 800px)').matches;
+          if (!tiltActive && !isMobile) {
             const magnitude = Math.min(1, Math.abs(vyIn) / 600);
             vx += (Math.random() * 2 - 1) * 900 * magnitude;
           }
