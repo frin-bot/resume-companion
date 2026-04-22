@@ -118,7 +118,7 @@ function renderStatic() {
     </div>
     <div>
       <div class="meta-label">Languages</div>
-      <div class="meta-val">${m.languages.map(l => l.name).join(' · ')}</div>
+      <div class="meta-val">${m.languages.map(l => l.name === 'German' ? `<em>${l.name}</em>` : l.name).join(' · ')}</div>
     </div>
   `;
 
@@ -314,11 +314,32 @@ function buildMap() {
     div.innerHTML = `
       <div class="rail-dot"></div>
       <div class="rail-year">${it.startYear}</div>
-      <div class="rail-org">${it.org.split(' ')[0]}</div>
+      <div class="rail-org">${it.railLabel || it.org.split(' ')[0]}</div>
     `;
     railStops.appendChild(div);
     return div;
   });
+}
+
+// Choose which side of the pin the tooltip should sit on so it doesn't
+// block other visible pins or the arc. Weighted by 1/d² so close pins push
+// the tooltip away harder than distant ones. Stacked pins (same coord) are
+// skipped since they can't block each other.
+function pickTooltipSide(i, activeIdx) {
+  const [cx, cy] = MAP.project(TIMELINE[i].coord);
+  let dx = 0, dy = 0;
+  for (let j = 0; j <= activeIdx; j++) {
+    if (j === i) continue;
+    const [px, py] = MAP.project(TIMELINE[j].coord);
+    const vx = cx - px, vy = cy - py;
+    const d2 = vx * vx + vy * vy;
+    if (d2 < 1) continue;
+    dx += vx / d2;
+    dy += vy / d2;
+  }
+  if (dx === 0 && dy === 0) return 'up';
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'right' : 'left';
+  return dy > 0 ? 'down' : 'up';
 }
 
 function renderCard(item) {
@@ -483,6 +504,7 @@ function updateScene() {
       tt.style.display = '';
       tt.style.left = xPct + '%';
       tt.style.top = yPct + '%';
+      tt.dataset.side = pickTooltipSide(i, activeIdx);
       tt.classList.toggle('is-current', i === activeIdx);
     }
   }

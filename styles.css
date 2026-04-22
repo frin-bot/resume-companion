@@ -298,6 +298,7 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 .rail-stops {
   position: absolute; inset: 0;
   display: flex; flex-direction: column; justify-content: space-between;
+  z-index: 1;
 }
 .rail-stop {
   position: relative;
@@ -463,6 +464,9 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   opacity: 0;
   transition: opacity 200ms ease;
 }
+.pin-tt[data-side="down"]  { transform: translate(-50%, 14px); }
+.pin-tt[data-side="left"]  { transform: translate(calc(-100% - 14px), -50%); }
+.pin-tt[data-side="right"] { transform: translate(14px, -50%); }
 .pin-tt:hover { opacity: 1; }
 .pin-tt.is-current { opacity: 1; }
 .pin-tt-inner {
@@ -485,6 +489,30 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
   border-top: 5px solid var(--ink);
+}
+.pin-tt[data-side="down"] .pin-tt-inner::after {
+  left: 50%; top: -5px; bottom: auto; right: auto;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 5px solid var(--ink);
+  border-top: none;
+}
+.pin-tt[data-side="left"] .pin-tt-inner::after {
+  top: 50%; right: -5px; bottom: auto; left: auto;
+  transform: translateY(-50%);
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 5px solid var(--ink);
+  border-right: none;
+}
+.pin-tt[data-side="right"] .pin-tt-inner::after {
+  top: 50%; left: -5px; bottom: auto; right: auto;
+  transform: translateY(-50%);
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-right: 5px solid var(--ink);
+  border-left: none;
 }
 .pin-tt-city { color: var(--bg); }
 .pin-tt-org { color: var(--ink-4); margin-top: 2px; }
@@ -564,6 +592,21 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 @media (max-width: 640px) {
   .highlight { grid-template-columns: 1fr; }
   .highlight-year { padding-top: 4px; }
+}
+
+/* ============== PROJECTS ============== */
+.projects {
+  padding: 100px var(--pad);
+  max-width: var(--maxw);
+  margin: 0 auto;
+}
+.projects-placeholder {
+  font-family: var(--ff-mono);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 24px 0;
 }
 
 /* ============== CERTIFICATIONS ============== */
@@ -725,6 +768,7 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   .summary,
   .skills,
   .highlights,
+  .projects,
   .certifications,
   .languages,
   .contact { padding-top: 56px; padding-bottom: 56px; }
