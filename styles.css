@@ -413,7 +413,7 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   position: absolute;
   top: 50%;
   right: var(--pad);
-  transform: translateY(-50%);
+  transform: translate(var(--drag-x, 0px), calc(-50% + var(--drag-y, 0px)));
   width: min(440px, 38vw);
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: blur(12px) saturate(110%);
@@ -423,7 +423,24 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   z-index: 3;
   transition: opacity 180ms ease;
   box-shadow: 0 30px 60px -30px rgba(0,0,0,0.18);
+  cursor: grab;
+  touch-action: none;
 }
+.exp-card.dragging { cursor: grabbing; user-select: none; }
+.card-drag-handle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 18px;
+  height: 18px;
+  color: var(--ink-4);
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 200ms ease, color 200ms ease;
+}
+.card-drag-handle svg { width: 100%; height: 100%; display: block; }
+.exp-card:hover .card-drag-handle { opacity: 0.9; color: var(--accent); }
+.exp-card.dragging .card-drag-handle { opacity: 1; color: var(--accent); }
 .card-head {
   display: flex;
   justify-content: space-between;
@@ -842,9 +859,12 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
     width: auto;
     max-height: 55vh;
     overflow-y: auto;
-    transform: none;
+    transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
     padding: 20px 22px;
+    cursor: default;
+    touch-action: auto;
   }
+  .card-drag-handle { display: none; }
   .card-title { font-size: clamp(22px, 5.5vw, 30px); }
   .card-bullets { margin-top: 18px; gap: 10px; }
   .card-bullets li { font-size: 13.5px; }

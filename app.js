@@ -517,7 +517,16 @@ function updateScene() {
   const cardEl = document.getElementById('exp-card');
   const cardInT = smoothstep(clamp(subProg / 0.25, 0, 1));
   const cardOutT = subProg > 0.78 ? smoothstep(clamp((subProg - 0.78) / 0.22, 0, 1)) : 0;
-  cardEl.style.opacity = String(cardInT * (1 - cardOutT));
+  const cardOpacity = cardInT * (1 - cardOutT);
+  cardEl.style.opacity = String(cardOpacity);
+
+  // Reset drag offset each time the card transitions from hidden → visible
+  // (covers both new-card and same-card-shown-again cases). Don't reset mid-drag.
+  const cardVisible = cardOpacity > 0.05;
+  if (cardVisible && !state.cardVisible && !state.cardDragging && state.resetCardOffset) {
+    state.resetCardOffset();
+  }
+  state.cardVisible = cardVisible;
 
   // Bullets reveal
   const bulletEls = cardEl.querySelectorAll('.card-bullets li');
@@ -572,6 +581,46 @@ function initThemeToggle() {
   });
 }
 
+function initCardDrag() {
+  const card = document.getElementById('exp-card');
+  if (!card) return;
+  let startX = 0, startY = 0, baseDx = 0, baseDy = 0;
+
+  const resetOffset = () => {
+    card.style.removeProperty('--drag-x');
+    card.style.removeProperty('--drag-y');
+  };
+  state.resetCardOffset = resetOffset;
+
+  card.addEventListener('pointerdown', (e) => {
+    if (window.innerWidth <= 800) return;
+    if (e.target.closest('a, button')) return;
+    startX = e.clientX;
+    startY = e.clientY;
+    baseDx = parseFloat(card.style.getPropertyValue('--drag-x')) || 0;
+    baseDy = parseFloat(card.style.getPropertyValue('--drag-y')) || 0;
+    state.cardDragging = true;
+    card.classList.add('dragging');
+    card.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  card.addEventListener('pointermove', (e) => {
+    if (!state.cardDragging) return;
+    card.style.setProperty('--drag-x', (baseDx + e.clientX - startX) + 'px');
+    card.style.setProperty('--drag-y', (baseDy + e.clientY - startY) + 'px');
+  });
+
+  const endDrag = (e) => {
+    if (!state.cardDragging) return;
+    state.cardDragging = false;
+    card.classList.remove('dragging');
+    try { card.releasePointerCapture(e.pointerId); } catch (_) {}
+  };
+  card.addEventListener('pointerup', endDrag);
+  card.addEventListener('pointercancel', endDrag);
+}
+
 function initBackToTop() {
   const btn = document.getElementById('back-to-top');
   if (!btn) return;
@@ -586,6 +635,7 @@ function initBackToTop() {
 document.addEventListener('DOMContentLoaded', async () => {
   initThemeToggle();
   initBackToTop();
+  initCardDrag();
   const [statesData, countiesData] = await Promise.all([
     fetch('us-states.geojson').then(r => r.json()),
     fetch('counties.geojson').then(r => r.json()).catch(() => null),
