@@ -114,6 +114,7 @@ function renderStatic() {
     <div>
       <div class="meta-label">Profile</div>
       <div class="meta-val"><a href="https://${m.linkedin}" target="_blank" rel="noopener">${m.linkedin}</a></div>
+      <div class="meta-val"><a href="https://${m.github}" target="_blank" rel="noopener">${m.github}</a></div>
     </div>
     <div>
       <div class="meta-label">Languages</div>
@@ -178,6 +179,10 @@ function renderStatic() {
     <div class="contact-line">
       <span class="k">LinkedIn</span>
       <a class="v" href="https://${m.linkedin}" target="_blank" rel="noopener">${m.linkedin}</a>
+    </div>
+    <div class="contact-line">
+      <span class="k">GitHub</span>
+      <a class="v" href="https://${m.github}" target="_blank" rel="noopener">${m.github}</a>
     </div>
     <div class="contact-line">
       <span class="k">Location</span>
