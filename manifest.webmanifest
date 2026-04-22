@@ -1,0 +1,17 @@
+{
+  "name": "Efrain Plascencia — Companion Resume",
+  "short_name": "Efrain P.",
+  "description": "Technical Lead · Connected Vehicle & Telematics · Automotive Software",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f1ea",
+  "theme_color": "#1a1a1a",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

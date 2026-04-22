@@ -400,6 +400,10 @@ function updateScene() {
   let vb;
   if (activeIdx >= n - 1) {
     vb = vbCurTight;
+  } else if (currentItem.smoothPan) {
+    // Close-neighbor transition: hold briefly, then pan at constant zoom to the
+    // next pin without a zoom-out/wide phase. Both pins should share the same zoom.
+    vb = tweenVB(vbCurTight, vbNextTight, (subProg - 0.35) / 0.65);
   } else if (subProg < 0.35) {
     vb = vbCurTight;
   } else if (subProg < 0.75) {
