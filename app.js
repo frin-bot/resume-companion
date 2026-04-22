@@ -75,7 +75,7 @@ const MAP = (function(){
     }
   }
 
-  function arcPath(a, b, curvature) {
+  function arcControl(a, b, curvature) {
     curvature = curvature == null ? 0.35 : curvature;
     const dx = b[0] - a[0], dy = b[1] - a[1];
     const dist = Math.hypot(dx, dy);
@@ -87,10 +87,30 @@ const MAP = (function(){
       mx = (a[0] + b[0]) / 2 - nx * lift;
       my = (a[1] + b[1]) / 2 - ny * lift;
     }
-    return `M ${a[0].toFixed(2)},${a[1].toFixed(2)} Q ${mx.toFixed(2)},${my.toFixed(2)} ${b[0].toFixed(2)},${b[1].toFixed(2)}`;
+    return [mx, my];
   }
 
-  return { project, buildStatesSvg, viewBoxFor, viewBoxForBounds, arcPath, W, H };
+  function arcPath(a, b, curvature) {
+    const c = arcControl(a, b, curvature);
+    return `M ${a[0].toFixed(2)},${a[1].toFixed(2)} Q ${c[0].toFixed(2)},${c[1].toFixed(2)} ${b[0].toFixed(2)},${b[1].toFixed(2)}`;
+  }
+
+  // De Casteljau subdivision of a quadratic bezier from parameter 0 to t.
+  // Returns the SVG path string for the sub-curve and the endpoint coord.
+  function bezierSubPath(a, c, b, t) {
+    const p01x = a[0] + (c[0] - a[0]) * t;
+    const p01y = a[1] + (c[1] - a[1]) * t;
+    const p12x = c[0] + (b[0] - c[0]) * t;
+    const p12y = c[1] + (b[1] - c[1]) * t;
+    const endX = p01x + (p12x - p01x) * t;
+    const endY = p01y + (p12y - p01y) * t;
+    return {
+      d: `M ${a[0].toFixed(2)},${a[1].toFixed(2)} Q ${p01x.toFixed(2)},${p01y.toFixed(2)} ${endX.toFixed(2)},${endY.toFixed(2)}`,
+      endX, endY,
+    };
+  }
+
+  return { project, buildStatesSvg, viewBoxFor, viewBoxForBounds, arcPath, arcControl, bezierSubPath, W, H };
 })();
 
 // ===== STATIC HEAD/SUMMARY/SKILLS/CONTACT RENDERING =====
@@ -431,36 +451,33 @@ function updateScene() {
   }
   document.getElementById('year-big').textContent = displayYear;
 
-  // Active arc path + draw
+  // Active arc + traveling dot: the arc path literally grows as the dot moves.
+  // Partial bezier via De Casteljau — the dot sits at the endpoint of the growing curve.
   const arcEl = document.getElementById('arc-active');
-  const arcD = sameCity ? null : MAP.arcPath(pCurProj, pNextProj);
   const arcDrawT = smoothstep(clamp((subProg - 0.40) / 0.35, 0, 1));
 
-  if (arcD) {
-    arcEl.setAttribute('d', arcD);
-    arcEl.style.strokeDasharray = '1';
-    arcEl.style.strokeDashoffset = String(1 - arcDrawT);
-    arcEl.style.opacity = arcDrawT > 0.02 ? '1' : '0';
-    // Update invisible path for traveling dot
-    state.travelPath.setAttribute('d', arcD);
-  } else {
-    arcEl.style.opacity = '0';
-  }
+  if (!sameCity && arcDrawT > 0) {
+    const ctrl = MAP.arcControl(pCurProj, pNextProj);
+    const sub = MAP.bezierSubPath(pCurProj, ctrl, pNextProj, arcDrawT);
+    arcEl.setAttribute('d', sub.d);
+    arcEl.style.opacity = '1';
 
-  // Traveling dot
-  if (arcD && arcDrawT > 0 && arcDrawT < 1) {
-    const len = state.travelPath.getTotalLength();
-    const pt = state.travelPath.getPointAtLength(len * arcDrawT);
     const scale = vb.w / MAP.W;
     state.travelDot.style.display = '';
     state.travelHalo.style.display = '';
-    state.travelDot.setAttribute('cx', pt.x);
-    state.travelDot.setAttribute('cy', pt.y);
+    state.travelDot.setAttribute('cx', sub.endX);
+    state.travelDot.setAttribute('cy', sub.endY);
     state.travelDot.setAttribute('r', 3.5 * scale);
-    state.travelHalo.setAttribute('cx', pt.x);
-    state.travelHalo.setAttribute('cy', pt.y);
+    state.travelHalo.setAttribute('cx', sub.endX);
+    state.travelHalo.setAttribute('cy', sub.endY);
     state.travelHalo.setAttribute('r', 7 * scale);
+    // Once the curve has fully landed on the next pin, hide the dot so the pin takes over.
+    if (arcDrawT >= 1) {
+      state.travelDot.style.display = 'none';
+      state.travelHalo.style.display = 'none';
+    }
   } else {
+    arcEl.style.opacity = '0';
     state.travelDot.style.display = 'none';
     state.travelHalo.style.display = 'none';
   }
@@ -625,6 +642,167 @@ function initCardDrag() {
   card.addEventListener('pointercancel', endDrag);
 }
 
+function initLogoEasterEgg() {
+  const logo = document.querySelector('.floating-logo');
+  if (!logo) return;
+
+  const GRAVITY = 2200;       // px/s²
+  const BOUNCE_DAMP = 0.55;
+  const WALL_DAMP = 0.65;
+  const FRICTION_PER_SEC = 0.45;  // vx *= 0.45^dt while on floor
+  const STOP_VY = 30;
+  const STOP_VX = 15;
+  const ROLL_RADIUS = 28;     // half of 56px logo
+  const TILT_CLAMP = 40;      // degrees
+
+  let x = 0, y = 0, vx = 0, vy = 0, angle = 0;
+  let floor = 0, leftWall = 0, rightWall = 0;
+  let rafId = null;
+  let running = false;
+  let fallen = false;
+
+  let gamma = 0;
+  let tiltActive = false;
+
+  // --- Tilt: on Android, add listener immediately. On iOS, require a
+  // user gesture (touchstart/click anywhere) before requestPermission fires.
+  (function setupTilt() {
+    if (typeof DeviceOrientationEvent === 'undefined') return;
+    const addListener = () => {
+      window.addEventListener('deviceorientation', (e) => {
+        if (e.gamma != null) {
+          gamma = e.gamma;
+          if (fallen && !running) startAnim(false); // resume on new input
+        }
+      });
+      tiltActive = true;
+    };
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      const onGesture = async () => {
+        try {
+          const r = await DeviceOrientationEvent.requestPermission();
+          if (r === 'granted') addListener();
+        } catch (_) {}
+      };
+      document.addEventListener('touchstart', onGesture, { once: true, passive: true });
+      document.addEventListener('click', onGesture, { once: true });
+    } else {
+      addListener();
+    }
+  })();
+
+  function computeBounds() {
+    const prev = logo.style.transform;
+    logo.style.transform = 'translateX(-50%)';
+    const rect = logo.getBoundingClientRect();
+    logo.style.transform = prev;
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    const centerX = rect.left + rect.width / 2;
+    floor = vh - 12 - (rect.top + rect.height);
+    leftWall = -(centerX - rect.width / 2 - 6);
+    rightWall = vw - centerX - rect.width / 2 - 6;
+  }
+
+  function applyTransform() {
+    logo.style.transform = `translateX(calc(-50% + ${x.toFixed(1)}px)) translateY(${y.toFixed(1)}px) rotate(${angle.toFixed(1)}deg)`;
+  }
+
+  function startAnim(reset) {
+    if (running) return;
+    computeBounds();
+    if (reset) { x = 0; y = 0; vx = 0; vy = 0; angle = 0; }
+    running = true;
+    logo.style.transition = 'none';
+    let last = performance.now();
+    const tick = (now) => {
+      if (!running) return;
+      const dt = Math.min((now - last) / 1000, 0.032);
+      last = now;
+
+      // Gravity, tilted if we have orientation input.
+      let ax = 0, ay = GRAVITY;
+      if (tiltActive) {
+        const rad = clamp(gamma, -TILT_CLAMP, TILT_CLAMP) * Math.PI / 180;
+        ax = Math.sin(rad) * GRAVITY;
+        ay = Math.cos(rad) * GRAVITY;
+      }
+      vx += ax * dt;
+      vy += ay * dt;
+
+      x += vx * dt;
+      y += vy * dt;
+
+      // Floor
+      if (y >= floor) {
+        y = floor;
+        if (vy > 0) {
+          const vyIn = vy;
+          vy = -vy * BOUNCE_DAMP;
+          // No tilt input? Each bounce kicks the icon sideways for fun.
+          if (!tiltActive) {
+            const magnitude = Math.min(1, Math.abs(vyIn) / 600);
+            vx += (Math.random() * 2 - 1) * 900 * magnitude;
+          }
+        }
+      }
+
+      // Walls
+      if (x < leftWall) { x = leftWall; vx = Math.abs(vx) * WALL_DAMP; }
+      else if (x > rightWall) { x = rightWall; vx = -Math.abs(vx) * WALL_DAMP; }
+
+      // Floor friction
+      if (y >= floor - 0.5 && Math.abs(vy) < 50) {
+        vx *= Math.pow(FRICTION_PER_SEC, dt);
+      }
+
+      // Rolling rotation — angular displacement = dx / radius (in radians)
+      const dx = vx * dt;
+      angle += (dx / ROLL_RADIUS) * (180 / Math.PI);
+
+      applyTransform();
+
+      // Stop when fully settled and no tilt input is driving motion
+      const settled = y >= floor - 0.3 && Math.abs(vy) < STOP_VY && Math.abs(vx) < STOP_VX;
+      const tiltIdle = !tiltActive || Math.abs(gamma) < 3;
+      if (settled && tiltIdle) {
+        y = floor;
+        applyTransform();
+        running = false;
+        rafId = null;
+        return;
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function stopAnim() {
+    running = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    logo.style.transform = '';
+    logo.style.transition = '';
+    x = 0; y = 0; vx = 0; vy = 0; angle = 0;
+  }
+
+  const check = () => {
+    const scrollBottom = window.scrollY + window.innerHeight;
+    const docHeight = document.documentElement.scrollHeight;
+    const atBottom = scrollBottom >= docHeight - 4;
+    if (atBottom && !fallen) {
+      fallen = true;
+      startAnim(true);
+    } else if (!atBottom && fallen && window.scrollY < docHeight * 0.5) {
+      fallen = false;
+      stopAnim();
+    }
+  };
+  window.addEventListener('scroll', check, { passive: true });
+  window.addEventListener('resize', check);
+  check();
+}
+
 function initBackToTop() {
   const btn = document.getElementById('back-to-top');
   if (!btn) return;
@@ -640,6 +818,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initThemeToggle();
   initBackToTop();
   initCardDrag();
+  initLogoEasterEgg();
   const [statesData, countiesData] = await Promise.all([
     fetch('us-states.geojson').then(r => r.json()),
     fetch('counties.geojson').then(r => r.json()).catch(() => null),
