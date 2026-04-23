@@ -429,8 +429,12 @@ function updateScene() {
   // 3-phase zoom viewBox — per-stop zoom override, fall back to CONFIG.pinZoomTight
   const currentZoom = currentItem.zoom || CONFIG.pinZoomTight;
   const nextZoom = nextItem.zoom || CONFIG.pinZoomTight;
-  const vbCurTight = MAP.viewBoxFor(pCurProj, currentZoom, [0, 0]);
-  const vbNextTight = MAP.viewBoxFor(pNextProj, nextZoom, [0, 0]);
+  // On mobile the exp-card occupies the bottom ~half of the screen, so we
+  // push the pin upward in the viewBox to keep it and the incoming arc clear.
+  const mobileMap = matchMedia('(max-width: 800px)').matches;
+  const pinOffset = mobileMap ? [0, -0.28] : [0, 0];
+  const vbCurTight = MAP.viewBoxFor(pCurProj, currentZoom, pinOffset);
+  const vbNextTight = MAP.viewBoxFor(pNextProj, nextZoom, pinOffset);
   const sameCity = pCurProj[0] === pNextProj[0] && pCurProj[1] === pNextProj[1];
   const vbWide = sameCity ? vbCurTight : MAP.viewBoxForBounds(pCurProj, pNextProj, 80);
 
