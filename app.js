@@ -441,7 +441,7 @@ function updateScene() {
   // and we tighten the zoom so clustered pins (e.g. the SoCal stops) spread
   // out and become more distinguishable.
   const mobileMap = matchMedia('(max-width: 800px)').matches;
-  const zoomMult = mobileMap ? 1.7 : 1.0;
+  const zoomMult = mobileMap ? 2.0 : 1.0;
   const currentZoom = (currentItem.zoom || CONFIG.pinZoomTight) * zoomMult;
   const nextZoom = (nextItem.zoom || CONFIG.pinZoomTight) * zoomMult;
   const pinOffset = mobileMap ? [0, -0.28] : [0, 0];
