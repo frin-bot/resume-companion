@@ -563,6 +563,14 @@ function updateScene() {
       tt.style.top = yPct + '%';
       tt.dataset.side = pickTooltipSide(i, activeIdx);
       tt.classList.toggle('is-current', i === activeIdx);
+      // Final stop: fade the current tooltip out in lock-step with the card
+      // so nothing obstructs the all-pins overview.
+      if (activeIdx >= n - 1 && i === activeIdx) {
+        const fadeT = smoothstep(clamp((subProg - 0.35) / 0.05, 0, 1));
+        tt.style.opacity = String(1 - fadeT);
+      } else {
+        tt.style.opacity = '';
+      }
     }
   }
 
