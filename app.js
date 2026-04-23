@@ -551,30 +551,37 @@ function updateScene() {
     }
   }
 
-  // Tooltips — only for visible pins, positioned in % of current viewBox
+  // Tooltips — only for visible pins. Position in pixels via the SVG's
+  // screen CTM so they land on the pin even when preserveAspectRatio
+  // letterboxes the SVG inside a tall mobile container.
+  const tooltipsLayer = document.getElementById('pin-tooltips');
+  const ctm = svg.getScreenCTM();
+  const layerRect = tooltipsLayer.getBoundingClientRect();
+  const svgPt = svg.createSVGPoint();
   for (let i = 0; i < TIMELINE.length; i++) {
     const tt = state.tooltipEls[i];
-    const visible = i <= activeIdx;
-    if (!visible) { tt.style.display = 'none'; continue; }
+    const visibleTt = i <= activeIdx || (nextReached && i === activeIdx + 1);
+    if (!visibleTt) { tt.style.display = 'none'; continue; }
     const [px, py] = MAP.project(TIMELINE[i].coord);
+    // Check off-viewBox cull using normalized coords (cheap)
     const xPct = ((px - vb.x) / vb.w) * 100;
     const yPct = ((py - vb.y) / vb.h) * 100;
     if (xPct < -5 || xPct > 105 || yPct < -5 || yPct > 105) {
       tt.style.display = 'none';
+      continue;
+    }
+    svgPt.x = px; svgPt.y = py;
+    const screen = ctm ? svgPt.matrixTransform(ctm) : { x: 0, y: 0 };
+    tt.style.display = '';
+    tt.style.left = (screen.x - layerRect.left) + 'px';
+    tt.style.top = (screen.y - layerRect.top) + 'px';
+    tt.dataset.side = pickTooltipSide(i, activeIdx);
+    tt.classList.toggle('is-current', i === activeIdx);
+    if (activeIdx >= n - 1 && i === activeIdx) {
+      const fadeT = smoothstep(clamp((subProg - 0.35) / 0.05, 0, 1));
+      tt.style.opacity = String(1 - fadeT);
     } else {
-      tt.style.display = '';
-      tt.style.left = xPct + '%';
-      tt.style.top = yPct + '%';
-      tt.dataset.side = pickTooltipSide(i, activeIdx);
-      tt.classList.toggle('is-current', i === activeIdx);
-      // Final stop: fade the current tooltip out in lock-step with the card
-      // so nothing obstructs the all-pins overview.
-      if (activeIdx >= n - 1 && i === activeIdx) {
-        const fadeT = smoothstep(clamp((subProg - 0.35) / 0.05, 0, 1));
-        tt.style.opacity = String(1 - fadeT);
-      } else {
-        tt.style.opacity = '';
-      }
+      tt.style.opacity = '';
     }
   }
 
