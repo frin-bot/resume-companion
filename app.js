@@ -436,11 +436,14 @@ function updateScene() {
   const pNextProj = MAP.project(nextItem.coord);
 
   // 3-phase zoom viewBox — per-stop zoom override, fall back to CONFIG.pinZoomTight
-  const currentZoom = currentItem.zoom || CONFIG.pinZoomTight;
-  const nextZoom = nextItem.zoom || CONFIG.pinZoomTight;
   // On mobile the exp-card occupies the bottom ~half of the screen, so we
-  // push the pin upward in the viewBox to keep it and the incoming arc clear.
+  // push the pin upward in the viewBox to keep it and the incoming arc clear,
+  // and we tighten the zoom so clustered pins (e.g. the SoCal stops) spread
+  // out and become more distinguishable.
   const mobileMap = matchMedia('(max-width: 800px)').matches;
+  const zoomMult = mobileMap ? 1.7 : 1.0;
+  const currentZoom = (currentItem.zoom || CONFIG.pinZoomTight) * zoomMult;
+  const nextZoom = (nextItem.zoom || CONFIG.pinZoomTight) * zoomMult;
   const pinOffset = mobileMap ? [0, -0.28] : [0, 0];
   const vbCurTight = MAP.viewBoxFor(pCurProj, currentZoom, pinOffset);
   const vbNextTight = MAP.viewBoxFor(pNextProj, nextZoom, pinOffset);
