@@ -10,6 +10,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
+from PIL import Image, ImageDraw
 
 # Colors pulled from styles.css (:root light theme). Accent is the
 # sRGB conversion of oklch(0.42 0.12 255).
@@ -27,6 +28,35 @@ FF_MONO = "JetBrains Mono"
 ROOT = Path(__file__).parent
 OUTPUT = ROOT / "uploads" / "Efrain_Plascencia_Resume.docx"
 MEMOJI = ROOT / "memoji_standard_transparent.png"
+MEMOJI_CIRCLE = ROOT / "_memoji_circle.png"
+
+# Site bg (--bg) and rule (--rule) from styles.css :root.
+BG_COLOR = (0xF4, 0xF1, 0xEA, 255)
+RULE_RGBA = (0xDD, 0xD9, 0xD1, 255)
+
+
+def make_circular_memoji(src_path, out_path, size=600):
+    """Bake the .floating-logo treatment around the memoji: circular --bg fill,
+    1px --rule ring, memoji at 58/72 of the diameter (matching the site)."""
+    src = Image.open(src_path).convert("RGBA")
+
+    # Site ratios: 72px circle, 58px image, 1px border.
+    inner_ratio = 58 / 72
+    border_w = max(3, round(size / 72))  # ~1px scaled up; min 3 for crispness
+
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+    draw.ellipse([0, 0, size - 1, size - 1], fill=BG_COLOR)
+    draw.ellipse([0, 0, size - 1, size - 1], outline=RULE_RGBA, width=border_w)
+
+    inner = int(size * inner_ratio)
+    resized = src.resize((inner, inner), Image.LANCZOS)
+    offset = (size - inner) // 2
+    canvas.alpha_composite(resized, (offset, offset))
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    canvas.save(out_path, "PNG")
+    return out_path
 
 
 def load_data():
@@ -141,10 +171,11 @@ def build_document(timeline, meta):
     normal.font.color.rgb = INK_2
 
     # --- HEADER: memoji + name + subtitle + contact ---
+    circular = make_circular_memoji(MEMOJI, MEMOJI_CIRCLE)
     img_p = doc.add_paragraph()
     img_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     img_p.paragraph_format.space_after = Pt(4)
-    img_p.add_run().add_picture(str(MEMOJI), width=Inches(1.1))
+    img_p.add_run().add_picture(str(circular), width=Inches(1.1))
 
     name_p = doc.add_paragraph()
     name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
