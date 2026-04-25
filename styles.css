@@ -919,7 +919,7 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
     left: 16px;
     right: 16px;
     width: auto;
-    max-height: 55vh;
+    max-height: 45vh;
     overflow-y: auto;
     transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
     padding: 20px 22px;

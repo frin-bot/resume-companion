@@ -445,7 +445,7 @@ function updateScene() {
   const zoomMult = mobileMap ? 2.75 : 1.0;
   const currentZoom = (currentItem.zoom || CONFIG.pinZoomTight) * zoomMult;
   const nextZoom = (nextItem.zoom || CONFIG.pinZoomTight) * zoomMult;
-  const pinOffset = mobileMap ? [0, -0.28] : [0, 0];
+  const pinOffset = mobileMap ? [0, -0.40] : [0, 0];
   const vbCurTight = MAP.viewBoxFor(pCurProj, currentZoom, pinOffset);
   const vbNextTight = MAP.viewBoxFor(pNextProj, nextZoom, pinOffset);
   const sameCity = pCurProj[0] === pNextProj[0] && pCurProj[1] === pNextProj[1];
