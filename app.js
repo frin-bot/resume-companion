@@ -381,11 +381,12 @@ function pickTooltipSide(i, activeIdx) {
   }
   // On mobile the SVG is letterboxed inside a tall viewport, and the
   // left/right tooltip variants clip at the narrow edges. Restrict to
-  // vertical sides, away from the cluster of other pins. Default 'down'
-  // since the pin already sits in the upper portion of the viewport.
+  // vertical sides, away from the cluster of other pins. Default 'up'
+  // (matching desktop) when there are no neighbors to push the tooltip
+  // away from — keeps the first stop's callout from sitting on the pin.
   const mobile = matchMedia('(max-width: 800px)').matches;
   if (mobile) {
-    if (dy === 0) return 'down';
+    if (dy === 0) return 'up';
     return dy > 0 ? 'down' : 'up';
   }
   if (dx === 0 && dy === 0) return 'up';
