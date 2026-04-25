@@ -617,12 +617,14 @@ function updateScene() {
   }
 
   // Card: swap content when activeIdx changes; always update bullet reveal + opacity
+  const cardEl = document.getElementById('exp-card');
   if (activeIdx !== state.cardIdx) {
     renderCard(currentItem);
+    cardEl.scrollTop = 0;
     state.cardIdx = activeIdx;
   }
-  const cardEl = document.getElementById('exp-card');
   cardEl.style.opacity = String(cardOpacity);
+  state.cardLocked = cardOpacity > 0.95;
 
   // Reset drag offset each time the card transitions from hidden → visible
   // (covers both new-card and same-card-shown-again cases). Don't reset mid-drag.
@@ -970,6 +972,50 @@ function initLogoEasterEgg() {
   check();
 }
 
+// While the experience card is fully visible, route wheel/touch deltas
+// into card.scrollTop instead of page scroll. When the card hits its top
+// or bottom in the scroll direction, fall back to page scroll so the
+// fade-out (and the next stop) advances naturally.
+function initCardScrollLock() {
+  const card = document.getElementById('exp-card');
+  const sticky = document.querySelector('.exp-sticky');
+  if (!card || !sticky) return;
+
+  function applyDelta(dy) {
+    const max = card.scrollHeight - card.clientHeight;
+    if (max <= 1) return false;
+    if (dy > 0) {
+      if (card.scrollTop >= max - 1) return false;
+      card.scrollTop = Math.min(max, card.scrollTop + dy);
+      return true;
+    }
+    if (dy < 0) {
+      if (card.scrollTop <= 1) return false;
+      card.scrollTop = Math.max(0, card.scrollTop + dy);
+      return true;
+    }
+    return false;
+  }
+
+  sticky.addEventListener('wheel', (e) => {
+    if (!state.cardLocked) return;
+    if (applyDelta(e.deltaY)) e.preventDefault();
+  }, { passive: false });
+
+  let lastY = null;
+  sticky.addEventListener('touchstart', (e) => {
+    lastY = state.cardLocked && e.touches.length ? e.touches[0].clientY : null;
+  }, { passive: true });
+  sticky.addEventListener('touchmove', (e) => {
+    if (!state.cardLocked || lastY == null || !e.touches.length) return;
+    const y = e.touches[0].clientY;
+    const dy = lastY - y;
+    lastY = y;
+    if (applyDelta(dy)) e.preventDefault();
+  }, { passive: false });
+  sticky.addEventListener('touchend', () => { lastY = null; }, { passive: true });
+}
+
 function initBackToTop() {
   const btn = document.getElementById('back-to-top');
   if (!btn) return;
@@ -985,6 +1031,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initThemeToggle();
   initBackToTop();
   initCardDrag();
+  initCardScrollLock();
   initLogoEasterEgg();
   const [statesData, countiesData] = await Promise.all([
     fetch('us-states.geojson').then(r => r.json()),
