@@ -570,9 +570,12 @@ function updateScene() {
   const ctm = svg.getScreenCTM();
   const layerRect = tooltipsLayer.getBoundingClientRect();
   const svgPt = svg.createSVGPoint();
+  const mobileTooltip = matchMedia('(max-width: 800px)').matches;
   for (let i = 0; i < TIMELINE.length; i++) {
     const tt = state.tooltipEls[i];
-    const visibleTt = i <= activeIdx || (nextReached && i === activeIdx + 1);
+    const visibleTt = mobileTooltip
+      ? i === activeIdx
+      : i <= activeIdx || (nextReached && i === activeIdx + 1);
     if (!visibleTt) { tt.style.display = 'none'; continue; }
     const [px, py] = MAP.project(TIMELINE[i].coord);
     // Check off-viewBox cull using normalized coords (cheap)
