@@ -618,13 +618,34 @@ function updateScene() {
 
   // Card: swap content when activeIdx changes; always update bullet reveal + opacity
   const cardEl = document.getElementById('exp-card');
+
+  // Track raw scroll direction so we can land the card scroll position at the
+  // correct end (top when entering forward, bottom when entering backward).
+  const scrollY = window.scrollY;
+  if (state.lastScrollY != null) {
+    if (scrollY > state.lastScrollY) state.scrollDir = 1;
+    else if (scrollY < state.lastScrollY) state.scrollDir = -1;
+  }
+  state.lastScrollY = scrollY;
+  const dir = state.scrollDir || 1;
+  const maxScroll = () => Math.max(0, cardEl.scrollHeight - cardEl.clientHeight);
+
   if (activeIdx !== state.cardIdx) {
     renderCard(currentItem);
-    cardEl.scrollTop = 0;
+    // Forward into a new stop → start at top; backward → start at bottom so
+    // the user reads the card from where they were headed.
+    cardEl.scrollTop = dir < 0 ? maxScroll() : 0;
     state.cardIdx = activeIdx;
   }
   cardEl.style.opacity = String(cardOpacity);
-  state.cardLocked = cardOpacity > 0.95;
+
+  // Lock the page scroll only when the card is fully visible (held). Using
+  // subProg bounds is cleaner than an opacity threshold — no fade-in slop.
+  const newLocked = subProg > cardInEnd && subProg < cardOutStart;
+  if (newLocked && !state.cardLocked) {
+    cardEl.scrollTop = dir < 0 ? maxScroll() : 0;
+  }
+  state.cardLocked = newLocked;
 
   // Reset drag offset each time the card transitions from hidden → visible
   // (covers both new-card and same-card-shown-again cases). Don't reset mid-drag.
