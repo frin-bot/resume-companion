@@ -839,6 +839,7 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
     min-height: 0;
     justify-content: flex-start;
     gap: 40px;
+    padding-top: 88px;
     padding-bottom: 40px;
   }
   .hero-top {

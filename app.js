@@ -441,7 +441,7 @@ function updateScene() {
   // and we tighten the zoom so clustered pins (e.g. the SoCal stops) spread
   // out and become more distinguishable.
   const mobileMap = matchMedia('(max-width: 800px)').matches;
-  const zoomMult = mobileMap ? 2.0 : 1.0;
+  const zoomMult = mobileMap ? 2.75 : 1.0;
   const currentZoom = (currentItem.zoom || CONFIG.pinZoomTight) * zoomMult;
   const nextZoom = (nextItem.zoom || CONFIG.pinZoomTight) * zoomMult;
   const pinOffset = mobileMap ? [0, -0.28] : [0, 0];
@@ -723,9 +723,10 @@ function initLogoEasterEgg() {
 
   const FACE_STANDARD = 'memoji_standard_transparent.png';
   const FACE_SHOCKED  = 'memoji_shocked_transparent.png';
+  const FACE_LAUGHING = 'memoji_laughing_transparent.png';
   const FACE_SLEEP    = 'memoji_sleep_transparent.png';
   // Preload so src swaps don't flash a blank frame.
-  [FACE_SHOCKED, FACE_SLEEP].forEach(src => { const i = new Image(); i.src = src; });
+  [FACE_SHOCKED, FACE_LAUGHING, FACE_SLEEP].forEach(src => { const i = new Image(); i.src = src; });
   const setFace = (src) => { if (img && img.getAttribute('src') !== src) img.setAttribute('src', src); };
 
   const GRAVITY = 2200;       // px/s²
@@ -858,9 +859,12 @@ function initLogoEasterEgg() {
           // impulse to simulate a tilt input. Subsequent bounces preserve the
           // existing vx so the icon carries its momentum.
           const isMobile = matchMedia('(max-width: 800px)').matches;
-          if (firstFloorHit && !tiltActive && !isMobile) {
-            const magnitude = Math.min(1, Math.abs(vyIn) / 600);
-            vx += (Math.random() * 2 - 1) * 900 * magnitude;
+          if (firstFloorHit) {
+            setFace(FACE_LAUGHING);
+            if (!tiltActive && !isMobile) {
+              const magnitude = Math.min(1, Math.abs(vyIn) / 600);
+              vx += (Math.random() * 2 - 1) * 900 * magnitude;
+            }
           }
           firstFloorHit = false;
         }
