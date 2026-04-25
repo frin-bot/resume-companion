@@ -1,6 +1,6 @@
 // Locked config (defaults from TWEAK_DEFAULTS)
 const CONFIG = {
-  perStopVh: 100,       // 'snap' scroll feel
+  perStopVh: 150,       // 'snap' scroll feel — bumped from 100 for less rushed pacing
   pinZoomTight: 9.0,    // 'block' level
 };
 
@@ -564,6 +564,18 @@ function updateScene() {
     }
   }
 
+  // Card + active-tooltip opacity share the same scroll-driven envelope:
+  // snappy fade-in, long readable hold, then a fade-out timed to start with
+  // the zoom-out (or final overview pull-back).
+  const cardInEnd = 0.15;
+  const cardOutStart = activeIdx >= n - 1 ? 0.30 : 0.25;
+  const cardOutEnd = activeIdx >= n - 1 ? 0.55 : 0.45;
+  const cardInT = smoothstep(clamp(subProg / cardInEnd, 0, 1));
+  const cardOutT = subProg > cardOutStart
+    ? smoothstep(clamp((subProg - cardOutStart) / (cardOutEnd - cardOutStart), 0, 1))
+    : 0;
+  const cardOpacity = cardInT * (1 - cardOutT);
+
   // Tooltips — only for visible pins. Position in pixels via the SVG's
   // screen CTM so they land on the pin even when preserveAspectRatio
   // letterboxes the SVG inside a tall mobile container.
@@ -593,10 +605,13 @@ function updateScene() {
     tt.style.top = (screen.y - layerRect.top) + 'px';
     tt.dataset.side = pickTooltipSide(i, activeIdx);
     tt.classList.toggle('is-current', i === activeIdx);
-    if (activeIdx >= n - 1 && i === activeIdx) {
-      const fadeT = smoothstep(clamp((subProg - 0.35) / 0.05, 0, 1));
-      tt.style.opacity = String(1 - fadeT);
+    // Active tooltip rides the same fade envelope as the card. Disable the
+    // CSS transition so per-frame scroll updates don't trail behind.
+    if (i === activeIdx) {
+      tt.style.transition = 'none';
+      tt.style.opacity = String(cardOpacity);
     } else {
+      tt.style.transition = '';
       tt.style.opacity = '';
     }
   }
@@ -607,18 +622,6 @@ function updateScene() {
     state.cardIdx = activeIdx;
   }
   const cardEl = document.getElementById('exp-card');
-  // Card is visible only while we're tight on the pin. Snappy fade-in, a
-  // long hold for reading, then the fade-out completes exactly when the
-  // zoom-out (or final overview pull-back) begins — year ticker starts
-  // changing at the same moment.
-  const cardInEnd = 0.05;
-  const cardOutStart = activeIdx >= n - 1 ? 0.35 : 0.30;
-  const cardOutEnd = activeIdx >= n - 1 ? 0.40 : 0.35;
-  const cardInT = smoothstep(clamp(subProg / cardInEnd, 0, 1));
-  const cardOutT = subProg > cardOutStart
-    ? smoothstep(clamp((subProg - cardOutStart) / (cardOutEnd - cardOutStart), 0, 1))
-    : 0;
-  const cardOpacity = cardInT * (1 - cardOutT);
   cardEl.style.opacity = String(cardOpacity);
 
   // Reset drag offset each time the card transitions from hidden → visible
