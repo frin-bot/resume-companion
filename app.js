@@ -173,7 +173,7 @@ function renderStatic() {
   document.getElementById('certs-list').innerHTML = (m.certifications || []).map(c => `
     <div class="cert">
       <div class="cert-main">
-        <div class="cert-title">${c.title}</div>
+        <div class="cert-title">${c.link ? `<a href="${c.link}" target="_blank" rel="noopener">${c.title}</a>` : c.title}</div>
         <div class="cert-org">${c.org}</div>
       </div>
       <div class="cert-year">${c.year}</div>
