@@ -822,6 +822,8 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   text-transform: uppercase;
   color: var(--ink-3);
 }
+.foot a { transition: color 200ms ease; }
+.foot a:hover { color: var(--accent); }
 .foot {
   margin-top: 80px;
   padding-top: 24px;
