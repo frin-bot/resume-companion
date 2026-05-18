@@ -698,11 +698,32 @@ let COUNTIES_GEOJSON = null;
 function initThemeToggle() {
   const btn = document.getElementById('theme-toggle');
   if (!btn) return;
-  btn.addEventListener('click', () => {
-    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function applyTheme(next) {
     if (next === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
     else document.documentElement.removeAttribute('data-theme');
     try { localStorage.setItem('theme', next); } catch (_) {}
+  }
+
+  btn.addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+
+    if (reduceMotion) {
+      applyTheme(next);
+      return;
+    }
+
+    if (document.startViewTransition) {
+      document.startViewTransition(() => applyTheme(next));
+      return;
+    }
+
+    // Fallback: temporarily transition theme-dependent properties.
+    const root = document.documentElement;
+    root.classList.add('theme-transitioning');
+    applyTheme(next);
+    setTimeout(() => root.classList.remove('theme-transitioning'), 550);
   });
 }
 
