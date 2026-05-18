@@ -857,6 +857,25 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   color: var(--ink-3);
 }
 
+/* Subtle underline affordance for inline text links.
+   Buttons (.btn-*) and the floating logo keep their own treatment. */
+.meta-val a,
+.cert-title a,
+.foot a,
+.contact-line a.v {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  transition: color 200ms ease, text-decoration-color 200ms ease;
+}
+.meta-val a:hover,
+.cert-title a:hover,
+.foot a:hover,
+.contact-line a.v:hover {
+  text-decoration-color: currentColor;
+}
+
 /* ============== MOBILE (hero row + footer) ============== */
 @media (max-width: 640px) {
   .hero {
