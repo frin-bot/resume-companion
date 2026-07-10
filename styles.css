@@ -714,13 +714,68 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   max-width: var(--maxw);
   margin: 0 auto;
 }
-.projects-placeholder {
+.projects-list {
+  display: flex;
+  flex-direction: column;
+}
+.project {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 24px;
+  align-items: baseline;
+  padding: 24px 0;
+}
+.project-main { display: flex; flex-direction: column; gap: 8px; }
+.project-title {
+  font-family: var(--ff-display);
+  font-size: clamp(18px, 2.2vw, 22px);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.project-title a { color: inherit; transition: color 200ms ease; }
+.project-title a:hover { color: var(--accent); }
+.project-role {
   font-family: var(--ff-mono);
-  font-size: 13px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-3);
-  padding: 24px 0;
+}
+.project-body {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+.project-bullets {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.project-bullets li {
+  position: relative;
+  padding-left: 22px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.project-bullets li::before {
+  content: "—";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+.project-year {
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+}
+@media (max-width: 640px) {
+  .project { grid-template-columns: 1fr; }
+  .project-year { padding-top: 4px; }
 }
 
 /* ============== CERTIFICATIONS ============== */
@@ -861,6 +916,7 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
    Buttons (.btn-*) and the floating logo keep their own treatment. */
 .meta-val a,
 .cert-title a,
+.project-title a,
 .foot a,
 .contact-line a.v {
   text-decoration: underline;
@@ -871,6 +927,7 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 }
 .meta-val a:hover,
 .cert-title a:hover,
+.project-title a:hover,
 .foot a:hover,
 .contact-line a.v:hover {
   text-decoration-color: currentColor;

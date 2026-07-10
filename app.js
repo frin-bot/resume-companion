@@ -170,6 +170,18 @@ function renderStatic() {
     </div>
   `).join('');
 
+  document.getElementById('projects-list').innerHTML = (m.projects || []).map(p => `
+    <div class="project">
+      <div class="project-main">
+        <div class="project-title">${p.link ? `<a href="${p.link}" target="_blank" rel="noopener">${p.title}</a>` : p.title}</div>
+        <div class="project-role">${p.role} · ${p.domain}</div>
+        <div class="project-body">${p.tagline}</div>
+        <ul class="project-bullets">${(p.bullets || []).map(b => `<li>${b}</li>`).join('')}</ul>
+      </div>
+      <div class="project-year">${p.year}</div>
+    </div>
+  `).join('');
+
   document.getElementById('certs-list').innerHTML = (m.certifications || []).map(c => `
     <div class="cert">
       <div class="cert-main">

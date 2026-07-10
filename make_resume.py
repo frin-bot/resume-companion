@@ -29,6 +29,8 @@ ROOT = Path(__file__).parent
 OUTPUT = ROOT / "uploads" / "Efrain_Plascencia_Resume.docx"
 MEMOJI = ROOT / "memoji_standard_transparent.png"
 MEMOJI_CIRCLE = ROOT / "_memoji_circle.png"
+QR_IMAGE = ROOT / "qr_efrain_me.png"
+COMPANION_URL = "https://www.efrain.me/"
 
 # Site bg (--bg) and rule (--rule) from styles.css :root.
 BG_COLOR = (0xF4, 0xF1, 0xEA, 255)
@@ -292,13 +294,40 @@ def build_document(timeline, meta):
                 set_font(r, FF_BODY, 10, INK_2)
             body.paragraph_format.line_spacing = 1.3
 
-    # --- 06 PROJECTS placeholder (matches site) ---
-    section_label(doc, "06", "Projects")
-    p = doc.add_paragraph()
-    p.paragraph_format.space_after = Pt(4)
-    r = p.add_run("COMING SOON")
-    set_font(r, FF_MONO, 9, INK_3)
-    set_character_spacing(r, 1.4)
+    # --- 06 PROJECTS ---
+    projects = meta.get("projects", [])
+    if projects:
+        section_label(doc, "06", "Projects")
+        for pr in projects:
+            head = doc.add_paragraph()
+            head.paragraph_format.space_before = Pt(8)
+            head.paragraph_format.space_after = Pt(1)
+            tab_right(head, 7.5)
+            title_run = head.add_run(pr["title"])
+            set_font(title_run, FF_DISPLAY, 13, INK)
+            head.add_run("\t")
+            year_run = head.add_run(str(pr["year"]))
+            set_font(year_run, FF_MONO, 9, ACCENT)
+            set_character_spacing(year_run, 1.0)
+
+            meta_p = doc.add_paragraph()
+            meta_p.paragraph_format.space_after = Pt(4)
+            role_run = meta_p.add_run(pr["role"].upper())
+            set_font(role_run, FF_MONO, 9, INK_2)
+            set_character_spacing(role_run, 0.6)
+            dot_run = meta_p.add_run("   ·   ")
+            set_font(dot_run, FF_MONO, 9, INK_4)
+            domain_run = meta_p.add_run(pr["domain"])
+            set_font(domain_run, FF_MONO, 9, INK_3)
+
+            tag = doc.add_paragraph(pr["tagline"])
+            tag.paragraph_format.space_after = Pt(2)
+            for r in tag.runs:
+                set_font(r, FF_BODY, 10, INK_3)
+            tag.paragraph_format.line_spacing = 1.3
+
+            for bullet in pr.get("bullets", []):
+                add_bullet(doc, bullet)
 
     # --- 07 CERTIFICATIONS ---
     certs = meta.get("certifications", [])
@@ -338,6 +367,20 @@ def build_document(timeline, meta):
             level_run = p.add_run(" " + lang["level"].upper())
             set_font(level_run, FF_MONO, 8, INK_3)
             set_character_spacing(level_run, 1.0)
+
+    # --- XX COMPANION SITE (QR code to efrain.me) ---
+    label_p = section_label(doc, "XX", "Companion Site")
+    label_p.paragraph_format.keep_with_next = True
+    url_p = doc.add_paragraph()
+    url_p.paragraph_format.keep_with_next = True
+    url_p.paragraph_format.space_after = Pt(4)
+    url_run = url_p.add_run(COMPANION_URL)
+    set_font(url_run, FF_MONO, 9, INK_2)
+    set_character_spacing(url_run, 0.6)
+    qr_p = doc.add_paragraph()
+    qr_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    qr_p.paragraph_format.space_before = Pt(2)
+    qr_p.add_run().add_picture(str(QR_IMAGE), width=Inches(1.2))
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     doc.save(str(OUTPUT))
