@@ -178,6 +178,7 @@ function renderStatic() {
         <div class="project-role">${p.role} · ${p.domain}</div>
         <div class="project-body">${p.tagline}</div>
         <ul class="project-bullets">${(p.bullets || []).map(b => `<li>${b}</li>`).join('')}</ul>
+        ${(p.tags || []).length ? `<div class="project-tags">${p.tags.map(t => `<span class="project-tag">${t}</span>`).join('')}</div>` : ''}
       </div>
       <div class="project-year">${p.year}</div>
     </div>

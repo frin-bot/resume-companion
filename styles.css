@@ -767,6 +767,22 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   left: 0;
   color: var(--accent);
 }
+.project-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 8px;
+}
+.project-tag {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+.project-tag::before {
+  content: "#";
+  color: var(--accent);
+}
 .project-year {
   font-family: var(--ff-mono);
   font-size: 12px;
