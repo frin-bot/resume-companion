@@ -228,8 +228,9 @@ def build_document(timeline, meta):
         set_font(body, FF_BODY, 9.5, INK_2)
 
     # --- 03 PROFESSIONAL EXPERIENCE & EDUCATION ---
+    # Newest first in the document; TIMELINE stays chronological for the site map.
     section_label(doc, "03", "Professional Experience & Education")
-    for item in timeline:
+    for item in reversed(timeline):
         head = doc.add_paragraph()
         head.paragraph_format.space_before = Pt(8)
         head.paragraph_format.space_after = Pt(1)
@@ -255,7 +256,9 @@ def build_document(timeline, meta):
         city_run = meta_p.add_run(item["city"])
         set_font(city_run, FF_MONO, 9, INK_3)
 
-        for bullet in item.get("bullets", []):
+        # resumeBullets is a condensed override for the document; the site
+        # always shows the full bullets.
+        for bullet in item.get("resumeBullets") or item.get("bullets", []):
             add_bullet(doc, bullet)
 
     # --- 04 TECHNICAL SKILLS & TOOLS ---
