@@ -196,6 +196,7 @@ def build_document(timeline, meta):
         meta.get("email", ""),
         meta.get("linkedin", ""),
         meta.get("github", ""),
+        meta.get("x", ""),
     ]
     contact_text = "   ·   ".join(b for b in contact_bits if b).upper()
     contact_p = mono_line(doc, contact_text, INK_2, size=8, space=1.0, after=2)
@@ -328,6 +329,21 @@ def build_document(timeline, meta):
 
             for bullet in pr.get("bullets", []):
                 add_bullet(doc, bullet)
+
+            tags = pr.get("tags", [])
+            if tags:
+                tags_p = doc.add_paragraph()
+                tags_p.paragraph_format.space_before = Pt(4)
+                tags_p.paragraph_format.space_after = Pt(2)
+                for i, t in enumerate(tags):
+                    if i > 0:
+                        sep = tags_p.add_run("   ")
+                        set_font(sep, FF_MONO, 8.5, INK_3)
+                    hash_run = tags_p.add_run("#")
+                    set_font(hash_run, FF_MONO, 8.5, ACCENT)
+                    tag_run = tags_p.add_run(t)
+                    set_font(tag_run, FF_MONO, 8.5, INK_3)
+                    set_character_spacing(tag_run, 0.6)
 
     # --- 07 CERTIFICATIONS ---
     certs = meta.get("certifications", [])
