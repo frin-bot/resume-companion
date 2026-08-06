@@ -190,16 +190,13 @@ def build_document(timeline, meta):
     subtitle_text = meta["titleLine"].upper().replace(" · ", "   ·   ")
     mono_line(doc, subtitle_text, INK_3, size=8.5, space=1.3, after=8)
 
-    contact_bits = [
-        meta.get("location", ""),
-        meta.get("phone", ""),
-        meta.get("email", ""),
-        meta.get("linkedin", ""),
-        meta.get("github", ""),
-        meta.get("x", ""),
-    ]
-    contact_text = "   ·   ".join(b for b in contact_bits if b).upper()
-    contact_p = mono_line(doc, contact_text, INK_2, size=8, space=1.0, after=2)
+    # Contact on two lines: personal info, then profiles.
+    info_bits = [meta.get("location", ""), meta.get("phone", ""), meta.get("email", "")]
+    profile_bits = [meta.get("linkedin", ""), meta.get("x", ""), meta.get("github", "")]
+    info_text = "   ·   ".join(b for b in info_bits if b).upper()
+    mono_line(doc, info_text, INK_2, size=8, space=1.0, after=2)
+    profile_text = "   ·   ".join(b for b in profile_bits if b).upper()
+    contact_p = mono_line(doc, profile_text, INK_2, size=8, space=1.0, after=2)
     add_bottom_border(contact_p, RULE)
 
     # --- 01 PROFESSIONAL SUMMARY ---
