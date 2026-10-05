@@ -23,4 +23,7 @@ dist/
 # Generated build artifacts
 _memoji_circle.png
 
+# Local font/resume preview page — not for deploy
+preview-resume.html
+
 .vercel

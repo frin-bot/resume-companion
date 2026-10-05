@@ -238,8 +238,56 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   display: flex;
   flex-direction: column;
   letter-spacing: -0.04em;
+  isolation: isolate;
 }
 .hero-name .line-2 { font-style: italic; color: var(--ink-2); }
+@property --ai-glow-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: -30deg;
+}
+.hero-name .name-ai {
+  position: relative;
+  display: inline-block;
+  vertical-align: baseline;
+  isolation: isolate;
+  color: #fff;
+}
+:root[data-theme="dark"] .hero-name .name-ai {
+  color: #000;
+}
+.hero-name .name-ai::before {
+  content: "ai";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: -1;
+  width: max-content;
+  background-image: conic-gradient(
+    from var(--ai-glow-angle) at 50% 45%,
+    #ff3b30,
+    #ff9500,
+    #ffd60a,
+    #34c759,
+    #64d2ff,
+    #0a84ff,
+    #5e5ce6,
+    #bf5af2,
+    #ff3b30
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: blur(0.04em);
+  transform: translate(-50%, -50%) scale(1.08);
+  pointer-events: none;
+  user-select: none;
+  animation: ai-glow-spin 6s linear infinite;
+}
+@keyframes ai-glow-spin {
+  to { --ai-glow-angle: 330deg; }
+}
 .hero-title {
   margin-top: 40px;
   font-family: var(--ff-mono);
@@ -1051,4 +1099,5 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 @media (prefers-reduced-motion: reduce) {
   .pin-pulse { animation: none; }
   .card-bullets li { transition: none; }
+  .hero-name .name-ai::before { animation: none; }
 }

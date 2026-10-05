@@ -1,5 +1,5 @@
 """Generate Efrain_Plascencia_Resume.docx from the site's resume-data.js,
-matching the site's Swiss / Inter / JetBrains Mono aesthetic."""
+matching the site's Inter / swiss aesthetic."""
 import json
 import re
 from pathlib import Path
@@ -108,15 +108,15 @@ def add_bottom_border(paragraph, color=RULE, size=4):
     pPr.append(pBdr)
 
 
-def section_label(doc, number, label):
+def section_label(doc, number, label, compact=False):
     p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(16)
-    p.paragraph_format.space_after = Pt(6)
+    p.paragraph_format.space_before = Pt(8 if compact else 16)
+    p.paragraph_format.space_after = Pt(3 if compact else 6)
     num = p.add_run(f"{number}   ")
-    set_font(num, FF_MONO, 9, INK_4)
+    set_font(num, FF_MONO, 8 if compact else 9, INK_4)
     set_character_spacing(num, 1.0)
     lbl = p.add_run(label.upper())
-    set_font(lbl, FF_MONO, 9, INK)
+    set_font(lbl, FF_MONO, 8 if compact else 9, INK)
     set_character_spacing(lbl, 1.5)
     add_bottom_border(p, RULE)
     return p
@@ -132,16 +132,17 @@ def mono_line(doc, text, color=INK_3, size=8.5, space=1.0, after=0):
     return p
 
 
-def add_bullet(doc, text):
+def add_bullet(doc, text, compact=False):
     p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(2)
-    p.paragraph_format.space_after = Pt(2)
-    p.paragraph_format.left_indent = Inches(0.20)
-    p.paragraph_format.first_line_indent = Inches(-0.20)
+    p.paragraph_format.space_before = Pt(1 if compact else 2)
+    p.paragraph_format.space_after = Pt(1 if compact else 2)
+    p.paragraph_format.left_indent = Inches(0.18 if compact else 0.20)
+    p.paragraph_format.first_line_indent = Inches(-0.18 if compact else -0.20)
+    p.paragraph_format.line_spacing = 1.12 if compact else 1.0
     dash = p.add_run("— ")
-    set_font(dash, FF_BODY, 10, ACCENT)
+    set_font(dash, FF_BODY, 9 if compact else 10, ACCENT)
     body = p.add_run(text)
-    set_font(body, FF_BODY, 10, INK_2)
+    set_font(body, FF_BODY, 9 if compact else 10, INK_2)
     return p
 
 
@@ -156,247 +157,331 @@ def tab_right(paragraph, indent_inches=7.5):
     pPr.append(tabs)
 
 
-def build_document(timeline, meta):
+def add_compact_page_footer(section):
+    """Pin the companion-site QR to the page footer, bottom-right — not a body section."""
+    section.footer_distance = Inches(0.22)
+    footer = section.footer
+    footer.is_linked_to_previous = False
+    p = footer.paragraphs[0]
+    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(0)
+    p.add_run().add_picture(str(QR_IMAGE), width=Inches(0.52))
+    cap = footer.add_paragraph()
+    cap.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    cap.paragraph_format.space_before = Pt(1)
+    cap.paragraph_format.space_after = Pt(0)
+    label = cap.add_run("COMPANION SITE")
+    set_font(label, FF_MONO, 6.5, INK_3)
+    set_character_spacing(label, 0.8)
+
+
+def add_compact_extras_strip(doc, extras):
+    strip = doc.add_paragraph()
+    strip.paragraph_format.space_before = Pt(6)
+    strip.paragraph_format.space_after = Pt(0)
+    strip.paragraph_format.line_spacing = 1.1
+    pPr = strip._p.get_or_add_pPr()
+    pBdr = OxmlElement("w:pBdr")
+    top = OxmlElement("w:top")
+    top.set(qn("w:val"), "single")
+    top.set(qn("w:sz"), "4")
+    top.set(qn("w:space"), "4")
+    top.set(qn("w:color"), f"{RULE[0]:02X}{RULE[1]:02X}{RULE[2]:02X}")
+    pBdr.append(top)
+    pPr.append(pBdr)
+    for i, bit in enumerate(extras):
+        if i > 0:
+            sep = strip.add_run("   ·   ")
+            set_font(sep, FF_MONO, 7.5, INK_4)
+        run = strip.add_run(bit)
+        set_font(run, FF_BODY, 8, INK_2)
+
+
+def build_document(timeline, meta, compact=False):
     doc = Document()
 
-    # Thin margins
+    # Thin margins — tighter on the 1-pager so copy can breathe.
     for section in doc.sections:
-        section.top_margin = Inches(0.5)
-        section.bottom_margin = Inches(0.5)
+        section.top_margin = Inches(0.38 if compact else 0.5)
+        section.bottom_margin = Inches(0.82 if compact else 0.5)
         section.left_margin = Inches(0.5)
         section.right_margin = Inches(0.5)
+        if compact:
+            add_compact_page_footer(section)
 
     # Default paragraph style
     normal = doc.styles["Normal"]
     normal.font.name = FF_BODY
-    normal.font.size = Pt(10)
+    normal.font.size = Pt(9 if compact else 10)
     normal.font.color.rgb = INK_2
 
     # --- HEADER: memoji + name + subtitle + contact ---
     circular = make_circular_memoji(MEMOJI, MEMOJI_CIRCLE)
     img_p = doc.add_paragraph()
     img_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    img_p.paragraph_format.space_after = Pt(4)
-    img_p.add_run().add_picture(str(circular), width=Inches(1.1))
+    img_p.paragraph_format.space_after = Pt(2 if compact else 4)
+    img_p.add_run().add_picture(str(circular), width=Inches(0.62 if compact else 1.1))
 
     name_p = doc.add_paragraph()
     name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    name_p.paragraph_format.space_after = Pt(2)
+    name_p.paragraph_format.space_after = Pt(1 if compact else 2)
     name_run = name_p.add_run(meta["name"])
-    set_font(name_run, FF_DISPLAY, 32, INK)
-    # tighter tracking like the site
-    set_character_spacing(name_run, -0.6)
+    set_font(name_run, FF_DISPLAY, 18 if compact else 22, INK)
 
     subtitle_text = meta["titleLine"].upper().replace(" · ", "   ·   ")
-    mono_line(doc, subtitle_text, INK_3, size=8.5, space=1.3, after=8)
+    mono_line(doc, subtitle_text, INK_3, size=7.5 if compact else 8.5, space=1.3, after=4 if compact else 8)
 
     # Contact on two lines: personal info, then profiles.
     info_bits = [meta.get("location", ""), meta.get("phone", ""), meta.get("email", "")]
     profile_bits = [meta.get("linkedin", ""), meta.get("x", ""), meta.get("github", "")]
     info_text = "   ·   ".join(b for b in info_bits if b).upper()
-    mono_line(doc, info_text, INK_2, size=8, space=1.0, after=2)
+    mono_line(doc, info_text, INK_2, size=7.5 if compact else 8, space=1.0, after=1 if compact else 2)
     profile_text = "   ·   ".join(b for b in profile_bits if b).upper()
-    contact_p = mono_line(doc, profile_text, INK_2, size=8, space=1.0, after=2)
+    contact_p = mono_line(doc, profile_text, INK_2, size=7.5 if compact else 8, space=1.0, after=2)
     add_bottom_border(contact_p, RULE)
 
     # --- 01 PROFESSIONAL SUMMARY ---
-    section_label(doc, "01", "Professional Summary")
-    p = doc.add_paragraph(meta["summary"])
-    p.paragraph_format.space_after = Pt(4)
+    section_label(doc, "01", "Professional Summary", compact=compact)
+    summary_text = meta.get("resumeSummary") if compact else None
+    summary_text = summary_text or meta["summary"]
+    p = doc.add_paragraph(summary_text)
+    p.paragraph_format.space_after = Pt(2 if compact else 4)
     for r in p.runs:
-        set_font(r, FF_BODY, 10, INK_2)
-    p.paragraph_format.line_spacing = 1.35
+        set_font(r, FF_BODY, 9 if compact else 10, INK_2)
+    p.paragraph_format.line_spacing = 1.15 if compact else 1.35
 
     # --- 02 CORE COMPETENCIES ---
-    section_label(doc, "02", "Core Competencies")
-    comps = meta.get("competencies", [])
-    rows = (len(comps) + 1) // 2
-    table = doc.add_table(rows=rows, cols=2)
-    table.autofit = True
-    for i, comp in enumerate(comps):
-        cell = table.cell(i // 2, i % 2)
-        cell.text = ""
-        cp = cell.paragraphs[0]
-        cp.paragraph_format.space_after = Pt(2)
-        num = cp.add_run(f"{i+1:02d}   ")
-        set_font(num, FF_MONO, 8, INK_4)
-        set_character_spacing(num, 0.8)
-        body = cp.add_run(comp)
-        set_font(body, FF_BODY, 9.5, INK_2)
+    section_label(doc, "02", "Core Competencies", compact=compact)
+    if compact:
+        comps = meta.get("resumeCompetencies") or meta.get("competencies", [])
+        strip = doc.add_paragraph()
+        strip.paragraph_format.space_after = Pt(2)
+        strip.paragraph_format.line_spacing = 1.15
+        for i, comp in enumerate(comps):
+            if i > 0:
+                sep = strip.add_run("  ·  ")
+                set_font(sep, FF_MONO, 8, INK_4)
+            body = strip.add_run(comp)
+            set_font(body, FF_BODY, 9, INK_2)
+    else:
+        comps = meta.get("competencies", [])
+        rows = (len(comps) + 1) // 2
+        table = doc.add_table(rows=rows, cols=2)
+        table.autofit = True
+        for i, comp in enumerate(comps):
+            cell = table.cell(i // 2, i % 2)
+            cell.text = ""
+            cp = cell.paragraphs[0]
+            cp.paragraph_format.space_after = Pt(2)
+            num = cp.add_run(f"{i+1:02d}   ")
+            set_font(num, FF_MONO, 8, INK_4)
+            set_character_spacing(num, 0.8)
+            body = cp.add_run(comp)
+            set_font(body, FF_BODY, 9.5, INK_2)
 
     # --- 03 PROFESSIONAL EXPERIENCE & EDUCATION ---
     # Newest first in the document; TIMELINE stays chronological for the site map.
-    section_label(doc, "03", "Professional Experience & Education")
+    section_label(doc, "03", "Professional Experience & Education", compact=compact)
     for item in reversed(timeline):
         head = doc.add_paragraph()
-        head.paragraph_format.space_before = Pt(8)
-        head.paragraph_format.space_after = Pt(1)
+        head.paragraph_format.space_before = Pt(5 if compact else 8)
+        head.paragraph_format.space_after = Pt(0 if compact else 1)
         tab_right(head, 7.5)
         kind = "EDUCATION" if item.get("type") == "education" else "EXPERIENCE"
         kind_run = head.add_run(kind + "   ")
-        set_font(kind_run, FF_MONO, 8, ACCENT)
+        set_font(kind_run, FF_MONO, 7.5 if compact else 8, ACCENT)
         set_character_spacing(kind_run, 1.2)
         title_run = head.add_run(item["title"])
-        set_font(title_run, FF_DISPLAY, 13, INK, bold=False)
+        set_font(title_run, FF_DISPLAY, 11 if compact else 13, INK, bold=False)
         sep_run = head.add_run("\t")
         dates_run = head.add_run(item["dates"].upper())
-        set_font(dates_run, FF_MONO, 8.5, INK_3)
+        set_font(dates_run, FF_MONO, 8 if compact else 8.5, INK_3)
         set_character_spacing(dates_run, 1.0)
 
         meta_p = doc.add_paragraph()
-        meta_p.paragraph_format.space_after = Pt(4)
+        meta_p.paragraph_format.space_after = Pt(2 if compact else 4)
         org_run = meta_p.add_run(item["org"])
-        set_font(org_run, FF_MONO, 9, INK_2)
+        set_font(org_run, FF_MONO, 8 if compact else 9, INK_2)
         set_character_spacing(org_run, 0.6)
         dot_run = meta_p.add_run("   ·   ")
-        set_font(dot_run, FF_MONO, 9, INK_4)
+        set_font(dot_run, FF_MONO, 8 if compact else 9, INK_4)
         city_run = meta_p.add_run(item["city"])
-        set_font(city_run, FF_MONO, 9, INK_3)
+        set_font(city_run, FF_MONO, 8 if compact else 9, INK_3)
 
         # resumeBullets is a condensed override for the document; the site
-        # always shows the full bullets.
-        for bullet in item.get("resumeBullets") or item.get("bullets", []):
-            add_bullet(doc, bullet)
+        # always shows the full bullets. Compact treats an explicit empty
+        # list as "no bullets" (education on the 1-pager). Non-compact
+        # keeps the historical `or bullets` fallback so job-search imports
+        # and `python make_resume.py --full` are unchanged.
+        if compact:
+            bullets = item["resumeBullets"] if "resumeBullets" in item else item.get("bullets", [])
+        else:
+            bullets = item.get("resumeBullets") or item.get("bullets", [])
+        for bullet in bullets:
+            add_bullet(doc, bullet, compact=compact)
 
     # --- 04 TECHNICAL SKILLS & TOOLS ---
-    section_label(doc, "04", "Technical Skills & Tools")
-    for category, desc in meta.get("skills", {}).items():
-        p = doc.add_paragraph()
-        p.paragraph_format.space_before = Pt(4)
-        p.paragraph_format.space_after = Pt(2)
-        head_run = p.add_run(category.upper() + "   ")
-        set_font(head_run, FF_MONO, 8.5, INK)
-        set_character_spacing(head_run, 1.2)
-        body = doc.add_paragraph(desc)
-        body.paragraph_format.space_after = Pt(4)
-        body.paragraph_format.left_indent = Inches(0.0)
-        for r in body.runs:
-            set_font(r, FF_BODY, 10, INK_2)
-        body.paragraph_format.line_spacing = 1.3
-
-    # --- 05 HIGHLIGHTS ---
-    highlights = meta.get("highlights", [])
-    if highlights:
-        section_label(doc, "05", "Highlights")
-        for h in highlights:
-            head = doc.add_paragraph()
-            head.paragraph_format.space_before = Pt(4)
-            head.paragraph_format.space_after = Pt(1)
-            tab_right(head, 7.5)
-            title_run = head.add_run(h["title"])
-            set_font(title_run, FF_DISPLAY, 12, INK)
-            head.add_run("\t")
-            year_run = head.add_run(str(h["year"]))
-            set_font(year_run, FF_MONO, 9, ACCENT)
-            set_character_spacing(year_run, 1.0)
-            body = doc.add_paragraph(h["body"])
+    section_label(doc, "04", "Technical Skills & Tools", compact=compact)
+    skills = meta.get("resumeSkills") if compact else None
+    skills = skills or meta.get("skills", {})
+    for category, desc in skills.items():
+        if compact:
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(1)
+            p.paragraph_format.space_after = Pt(1)
+            p.paragraph_format.line_spacing = 1.1
+            head_run = p.add_run(category.upper() + "  ")
+            set_font(head_run, FF_MONO, 7.5, INK)
+            set_character_spacing(head_run, 1.0)
+            body_run = p.add_run(desc)
+            set_font(body_run, FF_BODY, 8.5, INK_2)
+        else:
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(4)
+            p.paragraph_format.space_after = Pt(2)
+            head_run = p.add_run(category.upper() + "   ")
+            set_font(head_run, FF_MONO, 8.5, INK)
+            set_character_spacing(head_run, 1.2)
+            body = doc.add_paragraph(desc)
             body.paragraph_format.space_after = Pt(4)
+            body.paragraph_format.left_indent = Inches(0.0)
             for r in body.runs:
                 set_font(r, FF_BODY, 10, INK_2)
             body.paragraph_format.line_spacing = 1.3
 
-    # --- 06 PROJECTS ---
-    projects = meta.get("projects", [])
-    if projects:
-        section_label(doc, "06", "Projects")
-        for pr in projects:
-            head = doc.add_paragraph()
-            head.paragraph_format.space_before = Pt(8)
-            head.paragraph_format.space_after = Pt(1)
-            tab_right(head, 7.5)
-            title_run = head.add_run(pr["title"])
-            set_font(title_run, FF_DISPLAY, 13, INK)
-            head.add_run("\t")
-            year_run = head.add_run(str(pr["year"]))
-            set_font(year_run, FF_MONO, 9, ACCENT)
-            set_character_spacing(year_run, 1.0)
+    if compact:
+        extras = []
+        for c in meta.get("certifications", []):
+            extras.append(f"MIT xPRO {c['year']}")
+        for h in meta.get("highlights", []):
+            extras.append(f"MBRDNA guest speaker {h['year']}")
+        langs = [lang["name"] for lang in meta.get("languages", []) if lang["name"] != "German"]
+        if langs:
+            extras.append(" · ".join(langs))
+        add_compact_extras_strip(doc, extras)
+    else:
+        # --- 05 HIGHLIGHTS ---
+        highlights = meta.get("highlights", [])
+        if highlights:
+            section_label(doc, "05", "Highlights")
+            for h in highlights:
+                head = doc.add_paragraph()
+                head.paragraph_format.space_before = Pt(4)
+                head.paragraph_format.space_after = Pt(1)
+                tab_right(head, 7.5)
+                title_run = head.add_run(h["title"])
+                set_font(title_run, FF_DISPLAY, 12, INK)
+                head.add_run("\t")
+                year_run = head.add_run(str(h["year"]))
+                set_font(year_run, FF_MONO, 9, ACCENT)
+                set_character_spacing(year_run, 1.0)
+                body = doc.add_paragraph(h["body"])
+                body.paragraph_format.space_after = Pt(4)
+                for r in body.runs:
+                    set_font(r, FF_BODY, 10, INK_2)
+                body.paragraph_format.line_spacing = 1.3
 
-            meta_p = doc.add_paragraph()
-            meta_p.paragraph_format.space_after = Pt(4)
-            role_run = meta_p.add_run(pr["role"].upper())
-            set_font(role_run, FF_MONO, 9, INK_2)
-            set_character_spacing(role_run, 0.6)
-            dot_run = meta_p.add_run("   ·   ")
-            set_font(dot_run, FF_MONO, 9, INK_4)
-            domain_run = meta_p.add_run(pr["domain"])
-            set_font(domain_run, FF_MONO, 9, INK_3)
+        # --- 06 PROJECTS ---
+        projects = meta.get("projects", [])
+        if projects:
+            section_label(doc, "06", "Projects")
+            for pr in projects:
+                head = doc.add_paragraph()
+                head.paragraph_format.space_before = Pt(8)
+                head.paragraph_format.space_after = Pt(1)
+                tab_right(head, 7.5)
+                title_run = head.add_run(pr["title"])
+                set_font(title_run, FF_DISPLAY, 13, INK)
+                head.add_run("\t")
+                year_run = head.add_run(str(pr["year"]))
+                set_font(year_run, FF_MONO, 9, ACCENT)
+                set_character_spacing(year_run, 1.0)
 
-            tag = doc.add_paragraph(pr["tagline"])
-            tag.paragraph_format.space_after = Pt(2)
-            for r in tag.runs:
-                set_font(r, FF_BODY, 10, INK_3)
-            tag.paragraph_format.line_spacing = 1.3
+                meta_p = doc.add_paragraph()
+                meta_p.paragraph_format.space_after = Pt(4)
+                role_run = meta_p.add_run(pr["role"].upper())
+                set_font(role_run, FF_MONO, 9, INK_2)
+                set_character_spacing(role_run, 0.6)
+                dot_run = meta_p.add_run("   ·   ")
+                set_font(dot_run, FF_MONO, 9, INK_4)
+                domain_run = meta_p.add_run(pr["domain"])
+                set_font(domain_run, FF_MONO, 9, INK_3)
 
-            for bullet in pr.get("bullets", []):
-                add_bullet(doc, bullet)
+                tag = doc.add_paragraph(pr["tagline"])
+                tag.paragraph_format.space_after = Pt(2)
+                for r in tag.runs:
+                    set_font(r, FF_BODY, 10, INK_3)
+                tag.paragraph_format.line_spacing = 1.3
 
-            tags = pr.get("tags", [])
-            if tags:
-                tags_p = doc.add_paragraph()
-                tags_p.paragraph_format.space_before = Pt(4)
-                tags_p.paragraph_format.space_after = Pt(2)
-                for i, t in enumerate(tags):
-                    if i > 0:
-                        sep = tags_p.add_run("   ")
-                        set_font(sep, FF_MONO, 8.5, INK_3)
-                    hash_run = tags_p.add_run("#")
-                    set_font(hash_run, FF_MONO, 8.5, ACCENT)
-                    tag_run = tags_p.add_run(t)
-                    set_font(tag_run, FF_MONO, 8.5, INK_3)
-                    set_character_spacing(tag_run, 0.6)
+                for bullet in pr.get("bullets", []):
+                    add_bullet(doc, bullet)
 
-    # --- 07 CERTIFICATIONS ---
-    certs = meta.get("certifications", [])
-    if certs:
-        section_label(doc, "07", "Certifications")
-        for c in certs:
-            head = doc.add_paragraph()
-            head.paragraph_format.space_before = Pt(3)
-            head.paragraph_format.space_after = Pt(2)
-            tab_right(head, 7.5)
-            title_run = head.add_run(c["title"])
-            set_font(title_run, FF_DISPLAY, 12, INK)
-            head.add_run("\t")
-            year_run = head.add_run(str(c["year"]))
-            set_font(year_run, FF_MONO, 9, ACCENT)
-            set_character_spacing(year_run, 1.0)
-            org = doc.add_paragraph()
-            org.paragraph_format.space_after = Pt(2)
-            org_run = org.add_run(c["org"])
-            set_font(org_run, FF_MONO, 9, INK_3)
-            set_character_spacing(org_run, 0.8)
+                tags = pr.get("tags", [])
+                if tags:
+                    tags_p = doc.add_paragraph()
+                    tags_p.paragraph_format.space_before = Pt(4)
+                    tags_p.paragraph_format.space_after = Pt(2)
+                    for i, t in enumerate(tags):
+                        if i > 0:
+                            sep = tags_p.add_run("   ")
+                            set_font(sep, FF_MONO, 8.5, INK_3)
+                        hash_run = tags_p.add_run("#")
+                        set_font(hash_run, FF_MONO, 8.5, ACCENT)
+                        tag_run = tags_p.add_run(t)
+                        set_font(tag_run, FF_MONO, 8.5, INK_3)
+                        set_character_spacing(tag_run, 0.6)
 
-    # --- 08 LANGUAGES ---
-    languages = meta.get("languages", [])
-    if languages:
-        section_label(doc, "08", "Languages")
-        p = doc.add_paragraph()
-        p.paragraph_format.space_after = Pt(4)
-        for i, lang in enumerate(languages):
-            if i > 0:
-                sep = p.add_run("   ·   ")
-                set_font(sep, FF_MONO, 9, INK_4)
-            # German italicized per the site touch
-            italic = lang["name"] == "German"
-            name_run = p.add_run(lang["name"])
-            set_font(name_run, FF_DISPLAY, 11, INK, italic=italic)
-            level_run = p.add_run(" " + lang["level"].upper())
-            set_font(level_run, FF_MONO, 8, INK_3)
-            set_character_spacing(level_run, 1.0)
+        # --- 07 CERTIFICATIONS ---
+        certs = meta.get("certifications", [])
+        if certs:
+            section_label(doc, "07", "Certifications")
+            for c in certs:
+                head = doc.add_paragraph()
+                head.paragraph_format.space_before = Pt(3)
+                head.paragraph_format.space_after = Pt(2)
+                tab_right(head, 7.5)
+                title_run = head.add_run(c["title"])
+                set_font(title_run, FF_DISPLAY, 12, INK)
+                head.add_run("\t")
+                year_run = head.add_run(str(c["year"]))
+                set_font(year_run, FF_MONO, 9, ACCENT)
+                set_character_spacing(year_run, 1.0)
+                org = doc.add_paragraph()
+                org.paragraph_format.space_after = Pt(2)
+                org_run = org.add_run(c["org"])
+                set_font(org_run, FF_MONO, 9, INK_3)
+                set_character_spacing(org_run, 0.8)
 
-    # --- XX COMPANION SITE (QR code to efrain.me) ---
-    label_p = section_label(doc, "XX", "Companion Site")
-    label_p.paragraph_format.keep_with_next = True
-    url_p = doc.add_paragraph()
-    url_p.paragraph_format.keep_with_next = True
-    url_p.paragraph_format.space_after = Pt(4)
-    url_run = url_p.add_run(COMPANION_URL)
-    set_font(url_run, FF_MONO, 9, INK_2)
-    set_character_spacing(url_run, 0.6)
-    qr_p = doc.add_paragraph()
-    qr_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    qr_p.paragraph_format.space_before = Pt(2)
-    qr_p.add_run().add_picture(str(QR_IMAGE), width=Inches(1.2))
+        # --- 08 LANGUAGES ---
+        languages = meta.get("languages", [])
+        if languages:
+            section_label(doc, "08", "Languages")
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(4)
+            for i, lang in enumerate(languages):
+                if i > 0:
+                    sep = p.add_run("   ·   ")
+                    set_font(sep, FF_MONO, 9, INK_4)
+                name_run = p.add_run(lang["name"])
+                set_font(name_run, FF_DISPLAY, 11, INK_3 if lang["name"] == "German" else INK)
+                level_run = p.add_run(" " + lang["level"].upper())
+                set_font(level_run, FF_MONO, 8, INK_3)
+                set_character_spacing(level_run, 1.0)
+
+        # --- XX COMPANION SITE (QR code to efrain.me) ---
+        label_p = section_label(doc, "XX", "Companion Site")
+        label_p.paragraph_format.keep_with_next = True
+        url_p = doc.add_paragraph()
+        url_p.paragraph_format.keep_with_next = True
+        url_p.paragraph_format.space_after = Pt(4)
+        url_run = url_p.add_run(COMPANION_URL)
+        set_font(url_run, FF_MONO, 9, INK_2)
+        set_character_spacing(url_run, 0.6)
+        qr_p = doc.add_paragraph()
+        qr_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        qr_p.paragraph_format.space_before = Pt(2)
+        qr_p.add_run().add_picture(str(QR_IMAGE), width=Inches(1.2))
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     doc.save(str(OUTPUT))
@@ -404,5 +489,8 @@ def build_document(timeline, meta):
 
 
 if __name__ == "__main__":
+    import sys
+
     timeline, meta = load_data()
-    build_document(timeline, meta)
+    compact = "--full" not in sys.argv
+    build_document(timeline, meta, compact=compact)
