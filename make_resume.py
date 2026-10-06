@@ -1,6 +1,7 @@
 """Generate Efrain_Plascencia_Resume.docx from the site's resume-data.js,
 matching the site's Inter / swiss aesthetic."""
 import json
+import math
 import re
 from pathlib import Path
 
@@ -10,7 +11,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 # Colors pulled from styles.css (:root light theme). Accent is the
 # sRGB conversion of oklch(0.42 0.12 255).
@@ -29,6 +30,7 @@ ROOT = Path(__file__).parent
 OUTPUT = ROOT / "uploads" / "Efrain_Plascencia_Resume.docx"
 MEMOJI = ROOT / "memoji_standard_transparent.png"
 MEMOJI_CIRCLE = ROOT / "_memoji_circle.png"
+NAME_GLOW = ROOT / "_name_glow.png"
 QR_IMAGE = ROOT / "qr_efrain_me.png"
 COMPANION_URL = "https://www.efrain.me/"
 
@@ -59,6 +61,146 @@ def make_circular_memoji(src_path, out_path, size=600):
     out_path.parent.mkdir(parents=True, exist_ok=True)
     canvas.save(out_path, "PNG")
     return out_path
+
+
+# Same stops as the hero conic glow, starting at -30deg.
+_AI_GLOW_STOPS = (
+    (255, 59, 48),
+    (255, 149, 0),
+    (255, 214, 10),
+    (52, 199, 89),
+    (100, 210, 255),
+    (10, 132, 255),
+    (94, 92, 230),
+    (191, 90, 242),
+    (255, 59, 48),
+)
+
+
+def _inter_tight_regular():
+    candidates = [
+        Path.home() / "AppData/Local/Microsoft/Windows/Fonts/InterTight-Regular.ttf",
+        Path(r"C:\Windows\Fonts\InterTight-Regular.ttf"),
+        ROOT / "fonts" / "InterTight-Regular.ttf",
+    ]
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
+
+
+def _ai_glow_color(t):
+    stops = _AI_GLOW_STOPS
+    t = t % 1.0
+    x = t * (len(stops) - 1)
+    i = min(int(x), len(stops) - 2)
+    f = x - i
+    a, b = stops[i], stops[i + 1]
+    return tuple(int(a[c] + (b[c] - a[c]) * f) for c in range(3))
+
+
+def _blur_premultiplied(image, radius):
+    """Blur like CSS: color fades out, it does not mix with black and turn grey."""
+    src = image.load()
+    width, height = image.size
+    premult = Image.new("RGBA", image.size)
+    dst = premult.load()
+    for y in range(height):
+        for x in range(width):
+            r, g, b, a = src[x, y]
+            if not a:
+                continue
+            dst[x, y] = (r * a // 255, g * a // 255, b * a // 255, a)
+    blurred = premult.filter(ImageFilter.GaussianBlur(radius))
+    src = blurred.load()
+    result = Image.new("RGBA", image.size)
+    dst = result.load()
+    for y in range(height):
+        for x in range(width):
+            r, g, b, a = src[x, y]
+            if not a:
+                continue
+            dst[x, y] = (min(255, r * 255 // a), min(255, g * 255 // a), min(255, b * 255 // a), a)
+    return result
+
+
+def _scale_around(mask, center, factor):
+    cx, cy = center
+    inv = 1 / factor
+    return mask.transform(
+        mask.size,
+        Image.Transform.AFFINE,
+        (inv, 0, cx - cx * inv, 0, inv, cy - cy * inv),
+        resample=Image.Resampling.BICUBIC,
+    )
+
+
+def render_name_with_ai_glow(name, out_path, pt_size):
+    """Raster of the name: ink letters, with the site's rainbow halo on "ai".
+
+    Returns (path, width_inches) or None when the font or the "ai" pair is missing.
+    """
+    font_path = _inter_tight_regular()
+    idx = name.find("ai")
+    if font_path is None or idx < 0:
+        return None
+
+    scale = 8  # pixels per point, so the halo stays sharp in Word
+    font = ImageFont.truetype(str(font_path), int(round(pt_size * scale)))
+    prefix = name[:idx]
+    ascent, descent = font.getmetrics()
+    em = font.size
+    blur_r = max(1, round(0.04 * em))
+    pad = blur_r + int(math.ceil(em * 0.08))
+    text_w = math.ceil(font.getlength(name))
+    width = text_w + pad * 2
+    height = ascent + descent + pad * 2
+    baseline = pad + ascent
+    origin = (pad, baseline)
+    ink = (0x1A, 0x1A, 0x1A, 255)
+
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    ImageDraw.Draw(canvas).text(origin, name, font=font, fill=ink, anchor="ls")
+
+    # Draw "ai" on its own. Punching it out of the full name leaves a faint
+    # edge on every other letter, and that edge was catching the rainbow.
+    ai_x = pad + font.getlength(prefix)
+    mask = Image.new("L", (width, height), 0)
+    ImageDraw.Draw(mask).text((ai_x, baseline), "ai", font=font, fill=255, anchor="ls")
+
+    bbox = mask.getbbox()
+    if bbox is None:
+        return None
+    glyph_cx = (bbox[0] + bbox[2]) / 2
+    glyph_cy = (bbox[1] + bbox[3]) / 2
+    glow_mask = _scale_around(mask, (glyph_cx, glyph_cy), 1.08)
+
+    # Gradient is centered on the "ai" glyphs, slightly above midline, like the site.
+    gcx = glyph_cx
+    gcy = bbox[1] + (bbox[3] - bbox[1]) * 0.45
+    glow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    src = glow_mask.load()
+    dst = glow.load()
+    for y in range(height):
+        for x in range(width):
+            alpha = src[x, y]
+            if not alpha:
+                continue
+            ang = math.degrees(math.atan2(x - gcx, -(y - gcy)))
+            color = _ai_glow_color((ang - (-30)) / 360)
+            dst[x, y] = (*color, alpha)
+    glow = _blur_premultiplied(glow, blur_r)
+
+    # Light-mode site color: white letters, rainbow behind them.
+    letters = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    ImageDraw.Draw(letters).text((ai_x, baseline), "ai", font=font, fill=(255, 255, 255, 255), anchor="ls")
+
+    canvas.alpha_composite(glow)
+    canvas.alpha_composite(letters)
+    cropped = canvas.crop(canvas.getbbox())
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    cropped.save(out_path, "PNG")
+    return out_path, cropped.width / (scale * 72)
 
 
 def load_data():
@@ -226,8 +368,18 @@ def build_document(timeline, meta, compact=False):
     name_p = doc.add_paragraph()
     name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     name_p.paragraph_format.space_after = Pt(1 if compact else 2)
-    name_run = name_p.add_run(meta["name"])
-    set_font(name_run, FF_DISPLAY, 18 if compact else 22, INK)
+    name_pt = 18 if compact else 22
+    glow = render_name_with_ai_glow(meta["name"], NAME_GLOW, name_pt)
+    if glow:
+        glow_path, glow_width = glow
+        name_p.add_run().add_picture(str(glow_path), width=Inches(glow_width))
+        # Real text stays in the file for search and applicant systems.
+        hidden = name_p.add_run(meta["name"])
+        set_font(hidden, FF_DISPLAY, name_pt, INK)
+        hidden.font.hidden = True
+    else:
+        name_run = name_p.add_run(meta["name"])
+        set_font(name_run, FF_DISPLAY, name_pt, INK)
 
     subtitle_text = meta["titleLine"].upper().replace(" · ", "   ·   ")
     mono_line(doc, subtitle_text, INK_3, size=7.5 if compact else 8.5, space=1.3, after=4 if compact else 8)

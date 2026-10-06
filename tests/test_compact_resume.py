@@ -82,6 +82,7 @@ class CompactResumeTests(unittest.TestCase):
         self.assertGreaterEqual(_inline_shape_count(self.out), 2)
         self.assertIn("Mercedes-Benz R&D North America", text)
         self.assertIn(self.meta["resumeSummary"][:40], text)
+        self.assertIn(self.meta["name"], text)
         self.assertNotIn("haven't articulated", text)
 
     def test_default_build_still_includes_projects_for_job_search(self):
