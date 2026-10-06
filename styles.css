@@ -582,6 +582,48 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   margin-bottom: 14px;
 }
 .card-kind { color: var(--accent); }
+.card-dates-stack {
+  position: relative;
+  flex: 1;
+  height: 1.2em;
+}
+.card-dates-stack .card-dates {
+  position: absolute;
+  top: 0;
+  right: 0;
+  white-space: nowrap;
+}
+.card-promo { position: relative; overflow: hidden; }
+.card-promo .card-role {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  margin: 0;
+}
+.card-promo-bodies { margin-top: 28px; }
+.card-promo-bodies .card-bullets { margin-top: 0; }
+.card-logo {
+  display: block;
+  width: 34px;
+  height: 34px;
+  margin: 0 0 14px;
+  object-fit: contain;
+  object-position: left center;
+  /* Brand files are black. Flatten to the page ink, and flip for dark mode. */
+  filter: brightness(0);
+}
+.card-logo.is-wordmark {
+  width: auto;
+  height: 22px;
+  max-width: 100%;
+}
+.card-logo.is-tall {
+  height: 40px;
+}
+:root[data-theme="dark"] .card-logo {
+  filter: brightness(0) invert(1);
+}
 .card-title {
   font-size: clamp(26px, 3vw, 42px);
   line-height: 1.1;
@@ -1092,7 +1134,11 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   }
   .card-drag-handle { display: none; }
   .card-title { font-size: clamp(22px, 5.5vw, 30px); }
+  .card-logo { width: 26px; height: 26px; margin-bottom: 10px; }
+  .card-logo.is-wordmark { width: auto; height: 18px; }
+  .card-logo.is-tall { height: 32px; }
   .card-bullets { margin-top: 18px; gap: 10px; }
+  .card-promo-bodies { margin-top: 18px; }
   .card-bullets li { font-size: 13.5px; }
 }
 

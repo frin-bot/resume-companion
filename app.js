@@ -236,6 +236,7 @@ const state = {
   built: null,        // output of buildStatesSvg
   activeIdx: -1,      // last rendered active index
   cardIdx: -1,        // last idx for which card content was rendered
+  promoShown: -1,     // promotion role currently seated in the card
   pCurProj: null,
   pNextProj: null,
   arcD: null,
@@ -352,7 +353,7 @@ function buildMap() {
     div.className = 'pin-tt';
     const city = it.city.split(' (')[0];
     const years = it.startYear + (it.endYear !== it.startYear
-      ? `–${it.endYear === 2026 ? "'26" : String(it.endYear).slice(2)}`
+      ? `–${it.endYear === 2026 ? "'26+" : String(it.endYear).slice(2)}`
       : '');
     div.innerHTML = `
       <div class="pin-tt-inner">
@@ -366,18 +367,26 @@ function buildMap() {
     return div;
   });
 
-  // Rail stops
+  // Rail stops. A promotion expands into one mark per role year so the
+  // line can pass 2023, 2024, and 2025 the same way it passes other stops.
   const railStops = document.getElementById('rail-stops');
-  state.railStopEls = TIMELINE.map((it) => {
-    const div = document.createElement('div');
-    div.className = 'rail-stop';
-    div.innerHTML = `
-      <div class="rail-dot"></div>
-      <div class="rail-year">${it.startYear}</div>
-      <div class="rail-org">${it.railLabel || it.org.split(' ')[0]}</div>
-    `;
-    railStops.appendChild(div);
-    return div;
+  state.railEntries = [];
+  state.railStopEls = [];
+  TIMELINE.forEach((it, timelineIdx) => {
+    const roles = it.promotions && it.promotions.length ? it.promotions : [null];
+    roles.forEach((role, roleIdx) => {
+      const div = document.createElement('div');
+      div.className = 'rail-stop';
+      const ongoing = role && it.endYear === 2026 && roleIdx === roles.length - 1;
+      div.innerHTML = `
+        <div class="rail-dot"></div>
+        <div class="rail-year">${ongoing ? '2026+' : (role ? role.year : it.startYear)}</div>
+        <div class="rail-org">${it.railLabel || it.org.split(' ')[0]}</div>
+      `;
+      railStops.appendChild(div);
+      state.railStopEls.push(div);
+      state.railEntries.push({ timelineIdx, roleIdx: role ? roleIdx : 0 });
+    });
   });
 }
 
@@ -412,13 +421,107 @@ function pickTooltipSide(i, activeIdx) {
   return dy > 0 ? 'down' : 'up';
 }
 
+function stopUnits(item) {
+  return (item.promotions && item.promotions.length) || 1;
+}
+
+function locateStop(p) {
+  const n = TIMELINE.length;
+  let total = 0;
+  for (let i = 0; i < n; i++) total += stopUnits(TIMELINE[i]);
+  const pos = p * total;
+  let acc = 0;
+  for (let i = 0; i < n; i++) {
+    const u = stopUnits(TIMELINE[i]);
+    if (pos < acc + u || i === n - 1) {
+      return { activeIdx: i, subProg: clamp((pos - acc) / u, 0, 1) };
+    }
+    acc += u;
+  }
+  return { activeIdx: n - 1, subProg: 1 };
+}
+
+// How long a fully shown card sits before the scroll transition starts.
+// Promotion fades and city-to-city departures share this.
+const CARD_HOLD = 0.68;
+
+// A promotion stop spends subProg across every role. Each role holds, then
+// crossfades into the next. The last role holds so the card can leave with
+// the map instead of fading into another title.
+function promoPhase(item, subProg) {
+  const roles = item.promotions;
+  if (!roles || roles.length < 2) return null;
+  const count = roles.length;
+  const slot = 1 / count;
+  const idx = Math.min(count - 1, Math.floor(subProg / slot + 1e-9));
+  const local = clamp((subProg - idx * slot) / slot, 0, 1);
+  const fadeStart = CARD_HOLD;
+  let out = 0;
+  let inn = 0;
+  if (idx < count - 1 && local > fadeStart) {
+    const t = (local - fadeStart) / (1 - fadeStart);
+    if (t < 0.5) out = smoothstep(t / 0.5);
+    else {
+      out = 1;
+      inn = smoothstep((t - 0.5) / 0.5);
+    }
+  }
+  return { idx, local, out, in: inn, count };
+}
+
+// City-to-city motion used to begin at 0.35. Park on that origin until
+// CARD_HOLD, then play the same phases across the time that remains.
+function afterHold(subProg) {
+  if (subProg <= CARD_HOLD) return 0.35;
+  const t = (subProg - CARD_HOLD) / (1 - CARD_HOLD);
+  return 0.35 + t * 0.65;
+}
+
+function bulletList(bullets) {
+  return bullets.map(b => `
+    <li>
+      <span class="bullet-mark">—</span>
+      <span>${b}</span>
+    </li>
+  `).join('');
+}
+
 function renderCard(item) {
   const el = document.getElementById('card-inner');
+  const logo = item.logo
+    ? `<img class="card-logo${item.wordmark ? ' is-wordmark' : ''}${item.tall ? ' is-tall' : ''}" src="${item.logo}" alt="">`
+    : '';
+  const kind = item.type === 'education' ? 'Education' : 'Experience';
+  state.promoShown = -1;
+  if (item.promotions && item.promotions.length) {
+    el.innerHTML = `
+      <div class="card-head">
+        <div class="card-kind">${kind}</div>
+        <div class="card-dates-stack">
+          ${item.promotions.map(role => `<div class="card-dates">${role.dates}</div>`).join('')}
+        </div>
+      </div>
+      ${logo}
+      <div class="card-promo card-promo-titles">
+        ${item.promotions.map(role => `<h2 class="card-title card-role">${role.title}</h2>`).join('')}
+      </div>
+      <div class="card-org">
+        <span class="card-org-name">${item.org}</span>
+        <span class="card-sep">·</span>
+        <span class="card-city">${item.city}</span>
+      </div>
+      <div class="card-promo card-promo-bodies">
+        ${item.promotions.map(role => `<ul class="card-bullets card-role">${bulletList(role.bullets)}</ul>`).join('')}
+      </div>
+    `;
+    return;
+  }
   el.innerHTML = `
     <div class="card-head">
-      <div class="card-kind">${item.type === 'education' ? 'Education' : 'Experience'}</div>
+      <div class="card-kind">${kind}</div>
       <div class="card-dates">${item.dates}</div>
     </div>
+    ${logo}
     <h2 class="card-title">${item.title}</h2>
     <div class="card-org">
       <span class="card-org-name">${item.org}</span>
@@ -426,14 +529,42 @@ function renderCard(item) {
       <span class="card-city">${item.city}</span>
     </div>
     <ul class="card-bullets">
-      ${item.bullets.map(b => `
-        <li style="opacity:0;transform:translateY(8px)">
-          <span class="bullet-mark">—</span>
-          <span>${b}</span>
-        </li>
-      `).join('')}
+      ${bulletList(item.bullets)}
     </ul>
   `;
+}
+
+function applyPromo(cardEl, phase) {
+  const titles = [...cardEl.querySelectorAll('.card-promo-titles .card-role')];
+  const bodies = [...cardEl.querySelectorAll('.card-promo-bodies .card-role')];
+  const dates = [...cardEl.querySelectorAll('.card-dates-stack .card-dates')];
+  if (!titles.length || !phase) return;
+  const shown = phase.in > 0 ? Math.min(phase.count - 1, phase.idx + 1) : phase.idx;
+  titles.forEach((el, i) => {
+    const o = i === phase.idx ? 1 - phase.out : (i === phase.idx + 1 ? phase.in : 0);
+    el.style.opacity = String(o);
+    el.toggleAttribute('aria-hidden', o < 0.5);
+    if (bodies[i]) {
+      bodies[i].style.opacity = String(o);
+      bodies[i].toggleAttribute('aria-hidden', o < 0.5);
+    }
+    if (dates[i]) {
+      dates[i].style.opacity = String(o);
+      dates[i].toggleAttribute('aria-hidden', o < 0.5);
+    }
+  });
+  const fit = (box, els) => {
+    if (!box || !els[phase.idx]) return;
+    const h0 = els[phase.idx].offsetHeight;
+    const h1 = phase.in > 0 && els[phase.idx + 1] ? els[phase.idx + 1].offsetHeight : h0;
+    box.style.height = (phase.in > 0 ? lerp(h0, h1, phase.in) : h0) + 'px';
+  };
+  fit(cardEl.querySelector('.card-promo-titles'), titles);
+  fit(cardEl.querySelector('.card-promo-bodies'), bodies);
+  if (shown !== state.promoShown) {
+    state.promoShown = shown;
+    cardEl.scrollTop = 0;
+  }
 }
 
 function updateScene() {
@@ -445,12 +576,13 @@ function updateScene() {
   const scrolled = clamp(-rect.top, 0, total);
   const p = total > 0 ? scrolled / total : 0;
 
-  const stopSpan = 1 / n;
-  const activeIdx = Math.min(n - 1, Math.floor(p / stopSpan));
-  const subProg = clamp((p - activeIdx * stopSpan) / stopSpan, 0, 1);
+  const located = locateStop(p);
+  const activeIdx = located.activeIdx;
+  const subProg = located.subProg;
 
   const currentItem = TIMELINE[activeIdx];
   const nextItem = TIMELINE[Math.min(n - 1, activeIdx + 1)];
+  const phase = promoPhase(currentItem, subProg);
   const pCurProj = MAP.project(currentItem.coord);
   const pNextProj = MAP.project(nextItem.coord);
 
@@ -474,24 +606,32 @@ function updateScene() {
     return { x: lerp(a.x, b.x, e), y: lerp(a.y, b.y, e), w: lerp(a.w, b.w, e), h: lerp(a.h, b.h, e) };
   }
 
+  const fly = (!phase && activeIdx < n - 1) ? afterHold(subProg) : subProg;
   let vb;
   if (activeIdx >= n - 1) {
-    // Final stop: hold on the last pin (card readable), then zoom out to an
-    // overview that frames every pin before the next section scrolls in.
+    // Final stop: hold tight while the card is readable, then zoom out to an
+    // overview that frames every pin. Promotion stops delay that pull-back
+    // until the last role.
     const target = state.vbAllPins || vbCurTight;
-    if (subProg < 0.40) vb = vbCurTight;
-    else if (subProg < 0.85) vb = tweenVB(vbCurTight, target, (subProg - 0.40) / 0.45);
-    else vb = target;
+    let exitT = 0;
+    if (phase) {
+      exitT = phase.idx === phase.count - 1 ? clamp((phase.local - 0.45) / 0.45, 0, 1) : 0;
+    } else if (subProg >= 0.85) {
+      exitT = 1;
+    } else if (subProg >= 0.40) {
+      exitT = (subProg - 0.40) / 0.45;
+    }
+    vb = tweenVB(vbCurTight, target, exitT);
   } else if (currentItem.smoothPan) {
     // Close-neighbor transition: hold briefly, then pan at constant zoom to the
     // next pin without a zoom-out/wide phase. Both pins should share the same zoom.
-    vb = tweenVB(vbCurTight, vbNextTight, (subProg - 0.35) / 0.65);
-  } else if (subProg < 0.35) {
+    vb = tweenVB(vbCurTight, vbNextTight, (fly - 0.35) / 0.65);
+  } else if (fly < 0.35) {
     vb = vbCurTight;
-  } else if (subProg < 0.75) {
-    vb = tweenVB(vbCurTight, vbWide, (subProg - 0.35) / 0.20);
+  } else if (fly < 0.75) {
+    vb = tweenVB(vbCurTight, vbWide, (fly - 0.35) / 0.20);
   } else {
-    vb = tweenVB(vbWide, vbNextTight, (subProg - 0.75) / 0.25);
+    vb = tweenVB(vbWide, vbNextTight, (fly - 0.75) / 0.25);
   }
 
   const svg = document.getElementById('usmap');
@@ -507,14 +647,26 @@ function updateScene() {
   // the pin (card visible), then lerps to the next value once motion starts,
   // so "landed on Hyundai" always reads 2013.
   let displayYear;
-  if (activeIdx >= n - 1) {
+  const promoShown = phase
+    ? (phase.in > 0.45 ? Math.min(phase.count - 1, phase.idx + 1) : phase.idx)
+    : 0;
+  if (phase) {
+    const roleYear = currentItem.promotions[promoShown].year;
+    const onCurrentRole = promoShown === phase.count - 1 && currentItem.endYear === 2026;
+    if (onCurrentRole) {
+      displayYear = '2026+';
+    } else {
+      displayYear = roleYear;
+    }
+  } else if (activeIdx >= n - 1) {
     // Final stop: startYear → endYear across the zoom-out.
     const yearStart = 0.40;
     const t = subProg < yearStart ? 0 : (subProg - yearStart) / (1 - yearStart);
     displayYear = Math.floor(lerp(currentItem.startYear, currentItem.endYear, t));
   } else {
     const yearStart = 0.35;
-    const t = subProg < yearStart ? 0 : (subProg - yearStart) / (1 - yearStart);
+    const y = afterHold(subProg);
+    const t = y < yearStart ? 0 : (y - yearStart) / (1 - yearStart);
     displayYear = Math.floor(lerp(currentItem.startYear, nextItem.startYear, t));
   }
   document.getElementById('year-big').textContent = displayYear;
@@ -522,7 +674,7 @@ function updateScene() {
   // Active arc + traveling dot: the arc path literally grows as the dot moves.
   // Partial bezier via De Casteljau — the dot sits at the endpoint of the growing curve.
   const arcEl = document.getElementById('arc-active');
-  const arcDrawT = smoothstep(clamp((subProg - 0.40) / 0.35, 0, 1));
+  const arcDrawT = smoothstep(clamp((fly - 0.40) / 0.35, 0, 1));
 
   if (!sameCity && arcDrawT > 0) {
     const ctrl = MAP.arcControl(pCurProj, pNextProj);
@@ -583,14 +735,16 @@ function updateScene() {
   }
 
   // Card + active-tooltip opacity share the same scroll-driven envelope:
-  // snappy fade-in, long readable hold, then a fade-out timed to start with
-  // the zoom-out (or final overview pull-back).
+  // snappy fade-in, then a hold that matches the GEMMACON promotions,
+  // then a fade-out as the map starts to leave.
   const cardInEnd = 0.15;
-  const cardOutStart = activeIdx >= n - 1 ? 0.30 : 0.25;
-  const cardOutEnd = activeIdx >= n - 1 ? 0.55 : 0.45;
-  const cardInT = smoothstep(clamp(subProg / cardInEnd, 0, 1));
-  const cardOutT = subProg > cardOutStart
-    ? smoothstep(clamp((subProg - cardOutStart) / (cardOutEnd - cardOutStart), 0, 1))
+  const cardOutStart = phase ? 0.58 : CARD_HOLD;
+  const cardOutEnd = phase ? 0.88 : CARD_HOLD + (1 - CARD_HOLD) * 0.5;
+  const inLocal = phase ? (phase.idx === 0 ? phase.local : 1) : subProg;
+  const outLocal = phase ? (phase.idx === phase.count - 1 ? phase.local : 0) : subProg;
+  const cardInT = smoothstep(clamp(inLocal / cardInEnd, 0, 1));
+  const cardOutT = outLocal > cardOutStart
+    ? smoothstep(clamp((outLocal - cardOutStart) / (cardOutEnd - cardOutStart), 0, 1))
     : 0;
   const cardOpacity = cardInT * (1 - cardOutT);
 
@@ -659,7 +813,9 @@ function updateScene() {
 
   // Lock the page scroll only when the card is fully visible (held). Using
   // subProg bounds is cleaner than an opacity threshold — no fade-in slop.
-  const newLocked = subProg > cardInEnd && subProg < cardOutStart;
+  const newLocked = phase
+    ? cardOpacity > 0.95 && (phase.idx < phase.count - 1 ? phase.out === 0 && phase.in === 0 : phase.local < cardOutStart)
+    : subProg > cardInEnd && subProg < cardOutStart;
   if (newLocked && !state.cardLocked) {
     cardEl.scrollTop = dir < 0 ? maxScroll() : 0;
   }
@@ -680,14 +836,21 @@ function updateScene() {
     li.style.opacity = '1';
     li.style.transform = 'none';
   });
+  if (phase) applyPromo(cardEl, phase);
 
-  // Rail
+  // Rail. Promotion years are their own marks. The active mark follows the
+  // year on screen, and the line travels the segment the same way it does
+  // between cities.
+  const railRole = phase ? phase.idx : 0;
+  const railLocal = phase ? phase.local : subProg;
+  const activeRail = state.railEntries.findIndex(e => e.timelineIdx === activeIdx && e.roleIdx === promoShown);
+  const progressRail = state.railEntries.findIndex(e => e.timelineIdx === activeIdx && e.roleIdx === railRole);
   for (let i = 0; i < state.railStopEls.length; i++) {
     const s = state.railStopEls[i];
-    s.classList.toggle('active', i === activeIdx);
-    s.classList.toggle('past', i < activeIdx);
+    s.classList.toggle('active', i === activeRail);
+    s.classList.toggle('past', i < activeRail);
   }
-  const progPct = ((activeIdx + subProg) / n) * 100;
+  const progPct = ((progressRail + railLocal) / state.railEntries.length) * 100;
   document.getElementById('rail-progress').style.height = progPct + '%';
 
   state.activeIdx = activeIdx;
@@ -706,7 +869,7 @@ function onScroll() {
 
 function setSectionHeight() {
   // Per-stop scroll length — defines total scrollable span of the experience section
-  const totalVh = TIMELINE.length * CONFIG.perStopVh;
+  const totalVh = TIMELINE.reduce((sum, item) => sum + stopUnits(item), 0) * CONFIG.perStopVh;
   document.getElementById('experience').style.height = totalVh + 'vh';
 }
 
