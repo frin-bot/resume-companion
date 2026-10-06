@@ -489,7 +489,7 @@ function bulletList(bullets) {
 function renderCard(item) {
   const el = document.getElementById('card-inner');
   const logo = item.logo
-    ? `<img class="card-logo${item.wordmark ? ' is-wordmark' : ''}${item.tall ? ' is-tall' : ''}" src="${item.logo}" alt="">`
+    ? `<img class="card-logo${item.wordmark ? ' is-wordmark' : ''}${item.tall ? ' is-tall' : ''}${item.compact ? ' is-compact' : ''}" src="${item.logo}" alt="">`
     : '';
   const kind = item.type === 'education' ? 'Education' : 'Experience';
   state.promoShown = -1;
