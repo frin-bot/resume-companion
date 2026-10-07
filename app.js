@@ -368,25 +368,36 @@ function buildMap() {
   });
 
   // Rail stops. A promotion expands into one mark per role year so the
-  // line can pass 2023, 2024, and 2025 the same way it passes other stops.
+  // line passes 2023, 2024, and 2025. If the last title is still current,
+  // a final mark carries the timeline on to the present year.
   const railStops = document.getElementById('rail-stops');
   state.railEntries = [];
   state.railStopEls = [];
   TIMELINE.forEach((it, timelineIdx) => {
     const roles = it.promotions && it.promotions.length ? it.promotions : [null];
-    roles.forEach((role, roleIdx) => {
+    const addStop = (year, entry) => {
       const div = document.createElement('div');
       div.className = 'rail-stop';
-      const ongoing = role && it.endYear === 2026 && roleIdx === roles.length - 1;
       div.innerHTML = `
         <div class="rail-dot"></div>
-        <div class="rail-year">${ongoing ? '2026+' : (role ? role.year : it.startYear)}</div>
+        <div class="rail-year">${formatYearLabel(year)}</div>
         <div class="rail-org">${it.railLabel || it.org.split(' ')[0]}</div>
       `;
       railStops.appendChild(div);
       state.railStopEls.push(div);
-      state.railEntries.push({ timelineIdx, roleIdx: role ? roleIdx : 0 });
+      state.railEntries.push(entry);
+    };
+    roles.forEach((role, roleIdx) => {
+      addStop(role ? role.year : it.startYear, {
+        timelineIdx,
+        roleIdx: role ? roleIdx : 0,
+        trailing: false,
+      });
     });
+    const cont = continuationYear(it);
+    if (cont != null) {
+      addStop(cont, { timelineIdx, roleIdx: roles.length - 1, trailing: true });
+    }
   });
 }
 
@@ -421,8 +432,23 @@ function pickTooltipSide(i, activeIdx) {
   return dy > 0 ? 'down' : 'up';
 }
 
+// The last promotion year can be earlier than the job's end year. GEMMACON's
+// Director title starts in 2025 while the role runs through the present, so
+// that title keeps the 2025 beat and the present year gets a beat of its own.
+function continuationYear(item) {
+  const roles = item.promotions;
+  if (!roles || !roles.length) return null;
+  const last = roles[roles.length - 1].year;
+  return item.endYear > last ? item.endYear : null;
+}
+
+function formatYearLabel(year) {
+  return year === 2026 ? '2026+' : String(year);
+}
+
 function stopUnits(item) {
-  return (item.promotions && item.promotions.length) || 1;
+  const roles = (item.promotions && item.promotions.length) || 1;
+  return roles + (continuationYear(item) ? 1 : 0);
 }
 
 function locateStop(p) {
@@ -452,9 +478,16 @@ function promoPhase(item, subProg) {
   const roles = item.promotions;
   if (!roles || roles.length < 2) return null;
   const count = roles.length;
+  const units = stopUnits(item);
+  const roleSpan = count / units;
+  if (subProg >= roleSpan - 1e-9 && continuationYear(item) != null) {
+    const trailT = clamp((subProg - roleSpan) / (1 - roleSpan), 0, 1);
+    return { idx: count - 1, local: 1, out: 0, in: 0, count, trailing: true, trailT };
+  }
+  const roleProg = subProg / roleSpan;
   const slot = 1 / count;
-  const idx = Math.min(count - 1, Math.floor(subProg / slot + 1e-9));
-  const local = clamp((subProg - idx * slot) / slot, 0, 1);
+  const idx = Math.min(count - 1, Math.floor(roleProg / slot + 1e-9));
+  const local = clamp((roleProg - idx * slot) / slot, 0, 1);
   const fadeStart = CARD_HOLD;
   let out = 0;
   let inn = 0;
@@ -466,7 +499,7 @@ function promoPhase(item, subProg) {
       inn = smoothstep((t - 0.5) / 0.5);
     }
   }
-  return { idx, local, out, in: inn, count };
+  return { idx, local, out, in: inn, count, trailing: false, trailT: 0 };
 }
 
 // City-to-city motion used to begin at 0.35. Park on that origin until
@@ -610,12 +643,18 @@ function updateScene() {
   let vb;
   if (activeIdx >= n - 1) {
     // Final stop: hold tight while the card is readable, then zoom out to an
-    // overview that frames every pin. Promotion stops delay that pull-back
-    // until the last role.
+    // overview that frames every pin. The present-year beat is what pulls back.
     const target = state.vbAllPins || vbCurTight;
     let exitT = 0;
-    if (phase) {
-      exitT = phase.idx === phase.count - 1 ? clamp((phase.local - 0.45) / 0.45, 0, 1) : 0;
+    if (phase && phase.trailing) {
+      const trail = phase.trailT;
+      exitT = trail >= 0.85 ? 1 : trail >= 0.40 ? (trail - 0.40) / 0.45 : 0;
+    } else if (phase) {
+      // A present-year beat follows the last title, so this role stays tight
+      // on 2025. Jobs with no later year still pull back on the last role.
+      exitT = (!continuationYear(currentItem) && phase.idx === phase.count - 1)
+        ? clamp((phase.local - 0.45) / 0.45, 0, 1)
+        : 0;
     } else if (subProg >= 0.85) {
       exitT = 1;
     } else if (subProg >= 0.40) {
@@ -652,12 +691,9 @@ function updateScene() {
     : 0;
   if (phase) {
     const roleYear = currentItem.promotions[promoShown].year;
-    const onCurrentRole = promoShown === phase.count - 1 && currentItem.endYear === 2026;
-    if (onCurrentRole) {
-      displayYear = '2026+';
-    } else {
-      displayYear = roleYear;
-    }
+    // Director stays on 2025 for its own beat. The following beat is the
+    // present year, so the ticker reaches 2026 after that promotion.
+    displayYear = phase.trailing ? formatYearLabel(currentItem.endYear) : roleYear;
   } else if (activeIdx >= n - 1) {
     // Final stop: startYear → endYear across the zoom-out.
     const yearStart = 0.40;
@@ -741,7 +777,12 @@ function updateScene() {
   const cardOutStart = phase ? 0.58 : CARD_HOLD;
   const cardOutEnd = phase ? 0.88 : CARD_HOLD + (1 - CARD_HOLD) * 0.5;
   const inLocal = phase ? (phase.idx === 0 ? phase.local : 1) : subProg;
-  const outLocal = phase ? (phase.idx === phase.count - 1 ? phase.local : 0) : subProg;
+  // The 2025 Director beat stays up. The card leaves on the 2026 beat.
+  const outLocal = !phase
+    ? subProg
+    : phase.trailing
+      ? phase.trailT
+      : (phase.idx === phase.count - 1 && !continuationYear(currentItem) ? phase.local : 0);
   const cardInT = smoothstep(clamp(inLocal / cardInEnd, 0, 1));
   const cardOutT = outLocal > cardOutStart
     ? smoothstep(clamp((outLocal - cardOutStart) / (cardOutEnd - cardOutStart), 0, 1))
@@ -813,8 +854,15 @@ function updateScene() {
 
   // Lock the page scroll only when the card is fully visible (held). Using
   // subProg bounds is cleaner than an opacity threshold — no fade-in slop.
+  const promoHeld = !phase
+    ? false
+    : phase.trailing
+      ? phase.trailT < cardOutStart
+      : phase.idx < phase.count - 1
+        ? phase.out === 0 && phase.in === 0
+        : continuationYear(currentItem) || phase.local < cardOutStart;
   const newLocked = phase
-    ? cardOpacity > 0.95 && (phase.idx < phase.count - 1 ? phase.out === 0 && phase.in === 0 : phase.local < cardOutStart)
+    ? cardOpacity > 0.95 && promoHeld
     : subProg > cardInEnd && subProg < cardOutStart;
   if (newLocked && !state.cardLocked) {
     cardEl.scrollTop = dir < 0 ? maxScroll() : 0;
@@ -842,9 +890,14 @@ function updateScene() {
   // year on screen, and the line travels the segment the same way it does
   // between cities.
   const railRole = phase ? phase.idx : 0;
-  const railLocal = phase ? phase.local : subProg;
-  const activeRail = state.railEntries.findIndex(e => e.timelineIdx === activeIdx && e.roleIdx === promoShown);
-  const progressRail = state.railEntries.findIndex(e => e.timelineIdx === activeIdx && e.roleIdx === railRole);
+  const railLocal = phase ? (phase.trailing ? phase.trailT : phase.local) : subProg;
+  const matchRail = (entry, roleIdx) => {
+    if (entry.timelineIdx !== activeIdx) return false;
+    if (phase && phase.trailing) return !!entry.trailing;
+    return !entry.trailing && entry.roleIdx === roleIdx;
+  };
+  const activeRail = state.railEntries.findIndex(e => matchRail(e, promoShown));
+  const progressRail = state.railEntries.findIndex(e => matchRail(e, railRole));
   for (let i = 0; i < state.railStopEls.length; i++) {
     const s = state.railStopEls[i];
     s.classList.toggle('active', i === activeRail);
