@@ -120,7 +120,6 @@ function renderStatic() {
   document.getElementById('hero-title-line').textContent = m.titleLine;
 
   const heroMeta = document.getElementById('hero-meta');
-  const phoneHref = 'tel:+1' + m.phone.replace(/\D/g, '');
   heroMeta.innerHTML = `
     <div>
       <div class="meta-label">Based in</div>
@@ -129,7 +128,7 @@ function renderStatic() {
     <div>
       <div class="meta-label">Contact</div>
       <div class="meta-val"><a href="mailto:${m.email}">${m.email}</a></div>
-      <div class="meta-val dim"><a href="${phoneHref}">${m.phone}</a></div>
+      <div class="meta-val dim">${m.phone}</div>
     </div>
     <div>
       <div class="meta-label">Profile</div>
