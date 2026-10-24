@@ -508,7 +508,7 @@ def build_document(timeline, meta, compact=False):
             extras.append(f"MIT xPRO {c['year']}")
         for h in meta.get("highlights", []):
             extras.append(f"MBRDNA guest speaker {h['year']}")
-        langs = [lang["name"] for lang in meta.get("languages", []) if lang["name"] != "German"]
+        langs = [lang["name"] for lang in meta.get("languages", [])]
         if langs:
             extras.append(" · ".join(langs))
         add_compact_extras_strip(doc, extras)
@@ -616,7 +616,7 @@ def build_document(timeline, meta, compact=False):
                     sep = p.add_run("   ·   ")
                     set_font(sep, FF_MONO, 9, INK_4)
                 name_run = p.add_run(lang["name"])
-                set_font(name_run, FF_DISPLAY, 11, INK_3 if lang["name"] == "German" else INK)
+                set_font(name_run, FF_DISPLAY, 11, INK)
                 level_run = p.add_run(" " + lang["level"].upper())
                 set_font(level_run, FF_MONO, 8, INK_3)
                 set_character_spacing(level_run, 1.0)

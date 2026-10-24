@@ -138,7 +138,7 @@ function renderStatic() {
     </div>
     <div>
       <div class="meta-label">Languages</div>
-      <div class="meta-val">${m.languages.map(l => l.name === 'German' ? `<em>${l.name}</em>` : l.name).join(' · ')}</div>
+      <div class="meta-val">${m.languages.map(l => l.name).join(' · ')}</div>
     </div>
   `;
 
