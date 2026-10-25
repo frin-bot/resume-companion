@@ -1,6 +1,6 @@
 # Resume Companion
 
-A scroll-driven companion resume site. Single static HTML file, no build step.
+A scroll-driven companion resume site. Static files, no framework.
 
 **Live:** https://www.efrain.me
 
@@ -66,9 +66,15 @@ gh repo create resume-companion --public --source=. --remote=origin --push
 
 ## Editing content
 
-Resume content lives at the top of the inlined `<script>` block in
-`index.html` — search for `const TIMELINE` and `const RESUME_META`.
-Change the values and redeploy. No rebuild step needed.
+Resume content lives in `resume-data.js`. After changing it, regenerate the
+static HTML (this is also the Vercel build command):
+
+```bash
+node scripts/build-static.mjs
+```
+
+`node scripts/build-static.mjs --check` fails if `index.html` or
+`manifest.webmanifest` has drifted from the data.
 
 To replace the downloadable resume, swap the file in `uploads/` and
 update both `href="uploads/..."` references in `index.html` if you

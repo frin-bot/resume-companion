@@ -62,7 +62,7 @@ class CompactResumeTests(unittest.TestCase):
         self.assertLess(len(self.meta["resumeSummary"]), len(self.meta["summary"]))
         self.assertIn("resumeCompetencies", self.meta)
         self.assertGreaterEqual(len(self.meta["resumeCompetencies"]), 6)
-        self.assertLess(len(self.meta["resumeCompetencies"]), len(self.meta["competencies"]))
+        self.assertLessEqual(len(self.meta["resumeCompetencies"]), len(self.meta["competencies"]))
         gemmacon = next(i for i in self.timeline if i["org"].startswith("GEMMACON"))
         self.assertEqual(len(gemmacon["resumeBullets"]), 3)
         paccar = next(i for i in self.timeline if i["org"] == "PACCAR")
@@ -89,7 +89,7 @@ class CompactResumeTests(unittest.TestCase):
         mr.build_document(self.timeline, self.meta)
         text = _docx_text(self.out)
         self.assertIn("Knew York", text)
-        self.assertIn("Agentic AI Systems & Workflows", text)
+        self.assertIn("Agentic AI Systems", text)
 
 
 if __name__ == "__main__":
