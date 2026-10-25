@@ -1168,3 +1168,56 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   .card-bullets li { transition: none; }
   .hero-name .name-ai::before { animation: none; }
 }
+
+/* Readable experience list when JavaScript is off. With JS, the noscript
+   block is not rendered, so the scroll map stays the only experience view. */
+html:not(.js) .exp-sticky { display: none; }
+.experience-static {
+  padding: 24px 0 40px;
+}
+.static-role {
+  padding: 28px 0;
+  border-top: 1px solid var(--rule);
+}
+.static-role h3 {
+  font-family: var(--ff-display);
+  font-size: clamp(26px, 3vw, 34px);
+  letter-spacing: -0.02em;
+  margin: 0 0 6px;
+}
+.static-role-kind,
+.static-role-meta,
+.static-promo-dates {
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 8px;
+}
+.static-role ul,
+.static-promo ul {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.static-role li,
+.static-promo li {
+  position: relative;
+  padding-left: 22px;
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+.static-role li::before,
+.static-promo li::before {
+  content: "—";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+.static-promo { margin-top: 18px; }
+.static-promo h4 {
+  font-family: var(--ff-display);
+  font-size: 20px;
+  margin: 0 0 4px;
+}

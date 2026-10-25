@@ -7,7 +7,7 @@ Project context for Claude Code. Read this first before making changes.
 A single-page scroll-driven resume companion site for Efrain Plascencia.
 The hero interaction is a US map that zooms from city to city as the user
 scrolls, drawing arcs between jobs, with a floating card revealing role
-details. Pure static site — no build step, no framework.
+details. Static site, no framework. Page text is generated from `resume-data.js`.
 
 **Live on Vercel.** Deploys automatically on push to `main` if the Vercel
 GitHub integration is connected; otherwise use `vercel --prod`.
@@ -122,9 +122,17 @@ to tune if issues show up.
 
 ## Editing content
 
-Resume content is currently in the inlined `<script>` block —
-`const TIMELINE = [...]` and `const RESUME_META = {...}`. After the
-split-into-files refactor, these should live in `resume-data.js`.
+Resume content lives in `resume-data.js` (`TIMELINE` and `RESUME_META`).
+After editing it, regenerate the static page so crawlers see the same text:
+
+```bash
+node scripts/build-static.mjs
+node scripts/build-static.mjs --check
+```
+
+`index.html` keeps `<!--static:…-->` markers. The script rewrites only those
+regions, plus the `description` in `manifest.webmanifest`. Vercel runs the
+same command on deploy.
 
 ## Deploy
 
