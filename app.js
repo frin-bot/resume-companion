@@ -1010,10 +1010,10 @@ function initLogoEasterEgg() {
   if (!logo) return;
   const img = logo.querySelector('img');
 
-  const FACE_STANDARD = 'memoji_standard_transparent.png';
-  const FACE_SHOCKED  = 'memoji_shocked_transparent.png';
-  const FACE_LAUGHING = 'memoji_laughing_transparent.png';
-  const FACE_SLEEP    = 'memoji_sleep_transparent.png';
+  const FACE_STANDARD = 'comic_standard_transparent.png';
+  const FACE_SHOCKED  = 'comic_shocked_transparent.png';
+  const FACE_LAUGHING = 'comic_laughing_transparent.png';
+  const FACE_SLEEP    = 'comic_sleep_transparent.png';
   // Preload so src swaps don't flash a blank frame.
   [FACE_SHOCKED, FACE_LAUGHING, FACE_SLEEP].forEach(src => { const i = new Image(); i.src = src; });
   const setFace = (src) => { if (img && img.getAttribute('src') !== src) img.setAttribute('src', src); };

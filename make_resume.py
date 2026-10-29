@@ -28,7 +28,7 @@ FF_MONO = "JetBrains Mono"
 
 ROOT = Path(__file__).parent
 OUTPUT = ROOT / "uploads" / "Efrain_Plascencia_Resume.docx"
-MEMOJI = ROOT / "memoji_standard_transparent.png"
+MEMOJI = ROOT / "comic_standard_transparent.png"
 MEMOJI_CIRCLE = ROOT / "_memoji_circle.png"
 NAME_GLOW = ROOT / "_name_glow.png"
 QR_IMAGE = ROOT / "qr_efrain_me.png"
