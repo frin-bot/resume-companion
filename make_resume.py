@@ -8,6 +8,7 @@ from pathlib import Path
 from docx import Document
 from docx.enum.table import WD_ALIGN_VERTICAL
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
@@ -33,6 +34,12 @@ MEMOJI_CIRCLE = ROOT / "_memoji_circle.png"
 NAME_GLOW = ROOT / "_name_glow.png"
 QR_IMAGE = ROOT / "qr_efrain_me.png"
 COMPANION_URL = "https://www.efrain.me/"
+CERT_TITLE = "Designing and Building AI Products and Services"
+CERT_URL = (
+    "https://certificates.emeritus.org/ccba003b-616a-4a04-a17e-380dae94eccc"
+    "#acc.3MJw8mIU"
+)
+_TOKEN_RE = re.compile(r"\*\*(.+?)\*\*|https?://[^\s<>\"')\]]+")
 
 # Site bg (--bg) and rule (--rule) from styles.css :root.
 BG_COLOR = (0xF4, 0xF1, 0xEA, 255)
@@ -220,6 +227,153 @@ def set_character_spacing(run, points):
     rPr.append(spacing)
 
 
+def add_hyperlink(paragraph, text, url, font_name, size_pt, color, spacing=None, bold=False):
+    """Clickable w:hyperlink that still looks like body text (no blue underline)."""
+    r_id = paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True)
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), r_id)
+    hyperlink.set(qn("w:history"), "1")
+    run = OxmlElement("w:r")
+    rPr = OxmlElement("w:rPr")
+    rFonts = OxmlElement("w:rFonts")
+    rFonts.set(qn("w:ascii"), font_name)
+    rFonts.set(qn("w:hAnsi"), font_name)
+    rFonts.set(qn("w:cs"), font_name)
+    rFonts.set(qn("w:eastAsia"), font_name)
+    rPr.append(rFonts)
+    sz_val = str(int(size_pt * 2))
+    sz = OxmlElement("w:sz")
+    sz.set(qn("w:val"), sz_val)
+    rPr.append(sz)
+    szCs = OxmlElement("w:szCs")
+    szCs.set(qn("w:val"), sz_val)
+    rPr.append(szCs)
+    color_el = OxmlElement("w:color")
+    color_el.set(qn("w:val"), f"{color[0]:02X}{color[1]:02X}{color[2]:02X}")
+    rPr.append(color_el)
+    u = OxmlElement("w:u")
+    u.set(qn("w:val"), "none")
+    rPr.append(u)
+    if spacing:
+        sp = OxmlElement("w:spacing")
+        sp.set(qn("w:val"), str(int(spacing * 20)))
+        rPr.append(sp)
+    if bold:
+        rPr.append(OxmlElement("w:b"))
+    run.append(rPr)
+    t = OxmlElement("w:t")
+    t.set(qn("xml:space"), "preserve")
+    t.text = text
+    run.append(t)
+    hyperlink.append(run)
+    paragraph._p.append(hyperlink)
+    return hyperlink
+
+
+def add_picture_hyperlink(paragraph, image_path, width, url):
+    """Embed an image that is itself a hyperlink (QR → efrain.me).
+
+    Word's PDF export ignores a w:hyperlink wrapper around a drawing. It
+    does honor DrawingML a:hlinkClick on wp:docPr / pic:cNvPr.
+    """
+    run = paragraph.add_run()
+    run.add_picture(str(image_path), width=width)
+    r_id = paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True)
+    drawing = run._r.find(qn("w:drawing"))
+    if drawing is not None:
+        from lxml import etree
+        A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+        WP = "{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}"
+        PIC = "{http://schemas.openxmlformats.org/drawingml/2006/picture}"
+        r_attr = qn("r:id")
+        for parent in drawing.iter():
+            if parent.tag in (WP + "docPr", PIC + "cNvPr"):
+                for child in list(parent):
+                    if child.tag == A + "hlinkClick":
+                        parent.remove(child)
+                click = etree.SubElement(parent, A + "hlinkClick")
+                click.set(r_attr, r_id)
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), r_id)
+    hyperlink.set(qn("w:history"), "1")
+    r = run._r
+    r.getparent().replace(r, hyperlink)
+    hyperlink.append(r)
+    return hyperlink
+
+
+def append_text_with_links(paragraph, text, font_name, size_pt, color, bold=False):
+    """Write text, turning **bold** markers and http(s) URLs into styled runs."""
+    pos = 0
+    for m in _TOKEN_RE.finditer(text):
+        if m.start() > pos:
+            r = paragraph.add_run(text[pos:m.start()])
+            set_font(r, font_name, size_pt, color, bold=bold)
+        if m.group(0).startswith("**"):
+            r = paragraph.add_run(m.group(1))
+            set_font(r, font_name, size_pt, color, bold=True)
+        else:
+            url = m.group(0).rstrip(".,;:)")
+            add_hyperlink(paragraph, url, url, font_name, size_pt, color, bold=bold)
+        pos = m.end()
+    if pos < len(text):
+        r = paragraph.add_run(text[pos:])
+        set_font(r, font_name, size_pt, color, bold=bold)
+
+
+def _abs_url(value):
+    v = (value or "").strip()
+    if not v:
+        return None
+    if v.startswith(("http://", "https://", "mailto:")):
+        return v
+    return "https://" + v
+
+
+def contact_lines(meta):
+    """Personal line then profile line; each item is (display, url_or_None)."""
+    info = []
+    if meta.get("location"):
+        info.append((meta["location"].upper(), None))
+    if meta.get("phone"):
+        info.append((meta["phone"].upper(), None))
+    email = meta.get("email")
+    if email:
+        info.append((email.upper(), f"mailto:{email}"))
+    profiles = []
+    for key in ("linkedin", "x", "github"):
+        v = meta.get(key)
+        if v:
+            profiles.append((v.upper(), _abs_url(v)))
+    return info, profiles
+
+
+def add_centered_bits(doc, bits, size=8, space=1.0, after=2, color=INK_2):
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_after = Pt(after)
+    for i, bit in enumerate(bits):
+        if i > 0:
+            sep = p.add_run("   ·   ")
+            set_font(sep, FF_MONO, size, color)
+            set_character_spacing(sep, space)
+        text, url = bit if isinstance(bit, tuple) else (bit, None)
+        if url:
+            add_hyperlink(p, text, url, FF_MONO, size, color, spacing=space)
+        else:
+            r = p.add_run(text)
+            set_font(r, FF_MONO, size, color)
+            set_character_spacing(r, space)
+    return p
+
+
+def cert_url(cert):
+    title = (cert.get("title") or "").strip()
+    if title == CERT_TITLE:
+        return CERT_URL
+    return cert.get("link") or None
+
+
 def set_font(run, name, size_pt, color=INK, bold=False, italic=False):
     run.font.name = name
     run.font.size = Pt(size_pt)
@@ -283,8 +437,7 @@ def add_bullet(doc, text, compact=False):
     p.paragraph_format.line_spacing = 1.12 if compact else 1.0
     dash = p.add_run("— ")
     set_font(dash, FF_BODY, 9 if compact else 10, ACCENT)
-    body = p.add_run(text)
-    set_font(body, FF_BODY, 9 if compact else 10, INK_2)
+    append_text_with_links(p, text, FF_BODY, 9 if compact else 10, INK_2)
     return p
 
 
@@ -308,14 +461,12 @@ def add_compact_page_footer(section):
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     p.paragraph_format.space_before = Pt(0)
     p.paragraph_format.space_after = Pt(0)
-    p.add_run().add_picture(str(QR_IMAGE), width=Inches(0.52))
+    add_picture_hyperlink(p, QR_IMAGE, Inches(0.52), COMPANION_URL)
     cap = footer.add_paragraph()
     cap.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     cap.paragraph_format.space_before = Pt(1)
     cap.paragraph_format.space_after = Pt(0)
-    label = cap.add_run("COMPANION SITE")
-    set_font(label, FF_MONO, 6.5, INK_3)
-    set_character_spacing(label, 0.8)
+    add_hyperlink(cap, "COMPANION SITE", COMPANION_URL, FF_MONO, 6.5, INK_3, spacing=0.8)
 
 
 def add_compact_extras_strip(doc, extras):
@@ -336,8 +487,12 @@ def add_compact_extras_strip(doc, extras):
         if i > 0:
             sep = strip.add_run("   ·   ")
             set_font(sep, FF_MONO, 7.5, INK_4)
-        run = strip.add_run(bit)
-        set_font(run, FF_BODY, 8, INK_2)
+        text, url = bit if isinstance(bit, tuple) else (bit, None)
+        if url:
+            add_hyperlink(strip, text, url, FF_BODY, 8, INK_2)
+        else:
+            run = strip.add_run(text)
+            set_font(run, FF_BODY, 8, INK_2)
 
 
 def build_document(timeline, meta, compact=False):
@@ -384,24 +539,20 @@ def build_document(timeline, meta, compact=False):
     subtitle_text = meta["titleLine"].upper().replace(" · ", "   ·   ")
     mono_line(doc, subtitle_text, INK_3, size=7.5 if compact else 8.5, space=1.3, after=4 if compact else 8)
 
-    # Contact on two lines: personal info, then profiles.
-    info_bits = [meta.get("location", ""), meta.get("phone", ""), meta.get("email", "")]
-    profile_bits = [meta.get("linkedin", ""), meta.get("x", ""), meta.get("github", "")]
-    info_text = "   ·   ".join(b for b in info_bits if b).upper()
-    mono_line(doc, info_text, INK_2, size=7.5 if compact else 8, space=1.0, after=1 if compact else 2)
-    profile_text = "   ·   ".join(b for b in profile_bits if b).upper()
-    contact_p = mono_line(doc, profile_text, INK_2, size=7.5 if compact else 8, space=1.0, after=2)
+    # Contact on two lines: personal info, then profiles (URLs are hyperlinks).
+    info_bits, profile_bits = contact_lines(meta)
+    add_centered_bits(doc, info_bits, size=7.5 if compact else 8, space=1.0, after=1 if compact else 2)
+    contact_p = add_centered_bits(doc, profile_bits, size=7.5 if compact else 8, space=1.0, after=2)
     add_bottom_border(contact_p, RULE)
 
     # --- 01 PROFESSIONAL SUMMARY ---
     section_label(doc, "01", "Professional Summary", compact=compact)
     summary_text = meta.get("resumeSummary") if compact else None
     summary_text = summary_text or meta["summary"]
-    p = doc.add_paragraph(summary_text)
+    p = doc.add_paragraph()
     p.paragraph_format.space_after = Pt(2 if compact else 4)
-    for r in p.runs:
-        set_font(r, FF_BODY, 9 if compact else 10, INK_2)
     p.paragraph_format.line_spacing = 1.15 if compact else 1.35
+    append_text_with_links(p, summary_text, FF_BODY, 9 if compact else 10, INK_2)
 
     # --- 02 CORE COMPETENCIES ---
     section_label(doc, "02", "Core Competencies", compact=compact)
@@ -505,7 +656,7 @@ def build_document(timeline, meta, compact=False):
     if compact:
         extras = []
         for c in meta.get("certifications", []):
-            extras.append(f"MIT xPRO {c['year']}")
+            extras.append((f"MIT xPRO {c['year']}", cert_url(c)))
         for h in meta.get("highlights", []):
             extras.append(f"MBRDNA guest speaker {h['year']}")
         langs = [lang["name"] for lang in meta.get("languages", [])]
@@ -543,8 +694,11 @@ def build_document(timeline, meta, compact=False):
                 head.paragraph_format.space_before = Pt(8)
                 head.paragraph_format.space_after = Pt(1)
                 tab_right(head, 7.5)
-                title_run = head.add_run(pr["title"])
-                set_font(title_run, FF_DISPLAY, 13, INK)
+                if pr.get("link"):
+                    add_hyperlink(head, pr["title"], pr["link"], FF_DISPLAY, 13, INK)
+                else:
+                    title_run = head.add_run(pr["title"])
+                    set_font(title_run, FF_DISPLAY, 13, INK)
                 head.add_run("\t")
                 year_run = head.add_run(str(pr["year"]))
                 set_font(year_run, FF_MONO, 9, ACCENT)
@@ -557,8 +711,11 @@ def build_document(timeline, meta, compact=False):
                 set_character_spacing(role_run, 0.6)
                 dot_run = meta_p.add_run("   ·   ")
                 set_font(dot_run, FF_MONO, 9, INK_4)
-                domain_run = meta_p.add_run(pr["domain"])
-                set_font(domain_run, FF_MONO, 9, INK_3)
+                if pr.get("link"):
+                    add_hyperlink(meta_p, pr["domain"], pr["link"], FF_MONO, 9, INK_3, spacing=0.0)
+                else:
+                    domain_run = meta_p.add_run(pr["domain"])
+                    set_font(domain_run, FF_MONO, 9, INK_3)
 
                 tag = doc.add_paragraph(pr["tagline"])
                 tag.paragraph_format.space_after = Pt(2)
@@ -593,8 +750,13 @@ def build_document(timeline, meta, compact=False):
                 head.paragraph_format.space_before = Pt(3)
                 head.paragraph_format.space_after = Pt(2)
                 tab_right(head, 7.5)
-                title_run = head.add_run(c["title"])
-                set_font(title_run, FF_DISPLAY, 12, INK)
+                title = c["title"]
+                url = cert_url(c)
+                if url:
+                    add_hyperlink(head, title, url, FF_DISPLAY, 12, INK)
+                else:
+                    title_run = head.add_run(title)
+                    set_font(title_run, FF_DISPLAY, 12, INK)
                 head.add_run("\t")
                 year_run = head.add_run(str(c["year"]))
                 set_font(year_run, FF_MONO, 9, ACCENT)
@@ -627,13 +789,11 @@ def build_document(timeline, meta, compact=False):
         url_p = doc.add_paragraph()
         url_p.paragraph_format.keep_with_next = True
         url_p.paragraph_format.space_after = Pt(4)
-        url_run = url_p.add_run(COMPANION_URL)
-        set_font(url_run, FF_MONO, 9, INK_2)
-        set_character_spacing(url_run, 0.6)
+        add_hyperlink(url_p, COMPANION_URL, COMPANION_URL, FF_MONO, 9, INK_2, spacing=0.6)
         qr_p = doc.add_paragraph()
         qr_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         qr_p.paragraph_format.space_before = Pt(2)
-        qr_p.add_run().add_picture(str(QR_IMAGE), width=Inches(1.2))
+        add_picture_hyperlink(qr_p, QR_IMAGE, Inches(1.2), COMPANION_URL)
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     doc.save(str(OUTPUT))
