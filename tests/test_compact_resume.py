@@ -16,21 +16,58 @@ sys.path.insert(0, str(ROOT))
 import make_resume as mr  # noqa: E402
 
 
+def _para_text(p) -> str:
+    from docx.oxml.ns import qn
+
+    chunks = []
+    for child in p._p:
+        if child.tag == qn("w:r"):
+            chunks.append("".join(t.text or "" for t in child.findall(qn("w:t"))))
+        elif child.tag == qn("w:hyperlink"):
+            chunks.append("".join(t.text or "" for t in child.findall(".//" + qn("w:t"))))
+    return "".join(chunks)
+
+
 def _docx_text(path: Path) -> str:
     from docx import Document
 
     doc = Document(str(path))
     parts = []
     for p in doc.paragraphs:
-        parts.append(p.text)
+        parts.append(_para_text(p))
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
-                parts.append(cell.text)
+                for p in cell.paragraphs:
+                    parts.append(_para_text(p))
     for section in doc.sections:
         for p in section.footer.paragraphs:
-            parts.append(p.text)
+            parts.append(_para_text(p))
     return "\n".join(parts)
+
+
+def _hyperlink_targets(path: Path) -> list[str]:
+    from docx import Document
+    from docx.oxml.ns import qn
+
+    doc = Document(str(path))
+    found = []
+
+    def walk(element, rels):
+        hrefs = {
+            rel.rId: rel.target_ref
+            for rel in rels.values()
+            if "hyperlink" in rel.reltype
+        }
+        for hl in element.findall(".//" + qn("w:hyperlink")):
+            rid = hl.get(qn("r:id"))
+            if rid and rid in hrefs:
+                found.append(hrefs[rid])
+
+    walk(doc.element.body, doc.part.rels)
+    for section in doc.sections:
+        walk(section.footer._element, section.footer.part.rels)
+    return found
 
 
 def _inline_shape_count(path: Path) -> int:
@@ -84,6 +121,19 @@ class CompactResumeTests(unittest.TestCase):
         self.assertIn(self.meta["resumeSummary"][:40], text)
         self.assertIn(self.meta["name"], text)
         self.assertNotIn("haven't articulated", text)
+
+    def test_compact_web_urls_are_hyperlinks(self):
+        mr.build_document(self.timeline, self.meta, compact=True)
+        urls = _hyperlink_targets(self.out)
+        self.assertIn("mailto:" + self.meta["email"], urls)
+        self.assertIn("https://" + self.meta["linkedin"], urls)
+        self.assertIn("https://" + self.meta["x"], urls)
+        self.assertIn("https://" + self.meta["github"], urls)
+        self.assertIn(mr.COMPANION_URL, urls)
+        self.assertIn(mr.CERT_URL, urls)
+        self.assertTrue(mr.CERT_URL.endswith("#acc.3MJw8mIU"))
+        # QR image + caption both point at the companion site.
+        self.assertGreaterEqual(urls.count(mr.COMPANION_URL), 2)
 
     def test_default_build_still_includes_projects_for_job_search(self):
         mr.build_document(self.timeline, self.meta)
