@@ -21,6 +21,7 @@ INK_2 = RGBColor(0x3A, 0x3A, 0x3A)
 INK_3 = RGBColor(0x6A, 0x6A, 0x6A)
 INK_4 = RGBColor(0xA8, 0xA5, 0xA0)
 ACCENT = RGBColor(0x15, 0x4C, 0x8C)
+LINK = RGBColor(0x05, 0x63, 0xC1)  # visible hyperlink blue
 RULE = RGBColor(0xDD, 0xD9, 0xD1)
 
 FF_DISPLAY = "Inter Tight"
@@ -228,7 +229,11 @@ def set_character_spacing(run, points):
 
 
 def add_hyperlink(paragraph, text, url, font_name, size_pt, color, spacing=None, bold=False):
-    """Clickable w:hyperlink that still looks like body text (no blue underline)."""
+    """Clickable w:hyperlink: underlined blue so it reads as a link on the PDF.
+
+    `color` is accepted for call-site compat (render_themed) but the visible
+    style is always LINK + single underline.
+    """
     r_id = paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True)
     hyperlink = OxmlElement("w:hyperlink")
     hyperlink.set(qn("r:id"), r_id)
@@ -249,10 +254,11 @@ def add_hyperlink(paragraph, text, url, font_name, size_pt, color, spacing=None,
     szCs.set(qn("w:val"), sz_val)
     rPr.append(szCs)
     color_el = OxmlElement("w:color")
-    color_el.set(qn("w:val"), f"{color[0]:02X}{color[1]:02X}{color[2]:02X}")
+    color_el.set(qn("w:val"), f"{LINK[0]:02X}{LINK[1]:02X}{LINK[2]:02X}")
     rPr.append(color_el)
     u = OxmlElement("w:u")
-    u.set(qn("w:val"), "none")
+    u.set(qn("w:val"), "single")
+    u.set(qn("w:color"), f"{LINK[0]:02X}{LINK[1]:02X}{LINK[2]:02X}")
     rPr.append(u)
     if spacing:
         sp = OxmlElement("w:spacing")
