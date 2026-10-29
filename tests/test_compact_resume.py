@@ -121,6 +121,7 @@ class CompactResumeTests(unittest.TestCase):
         self.assertIn(self.meta["resumeSummary"][:40], text)
         self.assertIn(self.meta["name"], text)
         self.assertNotIn("haven't articulated", text)
+        self.assertNotRegex(text, r"(?i)technical pre[-\s]?sales")
 
     def test_compact_web_urls_are_hyperlinks(self):
         mr.build_document(self.timeline, self.meta, compact=True)
@@ -134,6 +135,17 @@ class CompactResumeTests(unittest.TestCase):
         self.assertTrue(mr.CERT_URL.endswith("#acc.3MJw8mIU"))
         # QR image + caption both point at the companion site.
         self.assertGreaterEqual(urls.count(mr.COMPANION_URL), 2)
+        from docx import Document
+        from docx.oxml.ns import qn
+        doc = Document(str(self.out))
+        colors, underlines = set(), set()
+        for hl in doc.element.body.findall(".//" + qn("w:hyperlink")):
+            for color in hl.findall(".//" + qn("w:color")):
+                colors.add(color.get(qn("w:val")))
+            for u in hl.findall(".//" + qn("w:u")):
+                underlines.add(u.get(qn("w:val")))
+        self.assertIn("0563C1", colors)
+        self.assertIn("single", underlines)
 
     def test_default_build_still_includes_projects_for_job_search(self):
         mr.build_document(self.timeline, self.meta)
