@@ -412,7 +412,8 @@ def add_bottom_border(paragraph, color=RULE, size=4):
 
 def section_label(doc, number, label, compact=False):
     p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(8 if compact else 16)
+    # Compact space-before stays small so the one-page PDF still clears the footer.
+    p.paragraph_format.space_before = Pt(6 if compact else 16)
     p.paragraph_format.space_after = Pt(3 if compact else 6)
     num = p.add_run(f"{number}   ")
     set_font(num, FF_MONO, 8 if compact else 9, INK_4)
@@ -434,13 +435,28 @@ def mono_line(doc, text, color=INK_3, size=8.5, space=1.0, after=0):
     return p
 
 
+_MD_LINK_RE = re.compile(r"\[([^\]]+)\]\((https?://[^\s)]+)\)")
+_BARE_URL_RE = re.compile(r"https?://\S+")
+
+
+def plain_bullet(text: str) -> str:
+    """Experience lines on the downloadable resume are plain text.
+
+    Site bullets may use [label](url). Keep the label and drop the URL so the
+    document never prints link syntax or job-bullet URLs.
+    """
+    text = _MD_LINK_RE.sub(r"\1", text or "")
+    text = _BARE_URL_RE.sub("", text)
+    return re.sub(r"[ \t]{2,}", " ", text).strip()
+
+
 def add_bullet(doc, text, compact=False):
     p = doc.add_paragraph()
     p.paragraph_format.space_before = Pt(1 if compact else 2)
     p.paragraph_format.space_after = Pt(1 if compact else 2)
     p.paragraph_format.left_indent = Inches(0.18 if compact else 0.20)
     p.paragraph_format.first_line_indent = Inches(-0.18 if compact else -0.20)
-    p.paragraph_format.line_spacing = 1.12 if compact else 1.0
+    p.paragraph_format.line_spacing = 1.0
     dash = p.add_run("— ")
     set_font(dash, FF_BODY, 9 if compact else 10, ACCENT)
     append_text_with_links(p, text, FF_BODY, 9 if compact else 10, INK_2)
@@ -477,9 +493,9 @@ def add_compact_page_footer(section):
 
 def add_compact_extras_strip(doc, extras):
     strip = doc.add_paragraph()
-    strip.paragraph_format.space_before = Pt(6)
+    strip.paragraph_format.space_before = Pt(4)
     strip.paragraph_format.space_after = Pt(0)
-    strip.paragraph_format.line_spacing = 1.1
+    strip.paragraph_format.line_spacing = 1.0
     pPr = strip._p.get_or_add_pPr()
     pBdr = OxmlElement("w:pBdr")
     top = OxmlElement("w:top")
@@ -557,7 +573,7 @@ def build_document(timeline, meta, compact=False):
     summary_text = summary_text or meta["summary"]
     p = doc.add_paragraph()
     p.paragraph_format.space_after = Pt(2 if compact else 4)
-    p.paragraph_format.line_spacing = 1.15 if compact else 1.35
+    p.paragraph_format.line_spacing = 1.0 if compact else 1.35
     append_text_with_links(p, summary_text, FF_BODY, 9 if compact else 10, INK_2)
 
     # --- 02 CORE COMPETENCIES ---
@@ -566,7 +582,7 @@ def build_document(timeline, meta, compact=False):
         comps = meta.get("resumeCompetencies") or meta.get("competencies", [])
         strip = doc.add_paragraph()
         strip.paragraph_format.space_after = Pt(2)
-        strip.paragraph_format.line_spacing = 1.15
+        strip.paragraph_format.line_spacing = 1.0
         for i, comp in enumerate(comps):
             if i > 0:
                 sep = strip.add_run("  ·  ")
@@ -594,7 +610,7 @@ def build_document(timeline, meta, compact=False):
     section_label(doc, "03", "Professional Experience & Education", compact=compact)
     for item in reversed(timeline):
         head = doc.add_paragraph()
-        head.paragraph_format.space_before = Pt(5 if compact else 8)
+        head.paragraph_format.space_before = Pt(3 if compact else 8)
         head.paragraph_format.space_after = Pt(0 if compact else 1)
         tab_right(head, 7.5)
         kind = "EDUCATION" if item.get("type") == "education" else "EXPERIENCE"
@@ -628,7 +644,7 @@ def build_document(timeline, meta, compact=False):
         else:
             bullets = item.get("resumeBullets") or item.get("bullets", [])
         for bullet in bullets:
-            add_bullet(doc, bullet, compact=compact)
+            add_bullet(doc, plain_bullet(bullet), compact=compact)
 
     # --- 04 TECHNICAL SKILLS & TOOLS ---
     section_label(doc, "04", "Technical Skills & Tools", compact=compact)
@@ -639,7 +655,7 @@ def build_document(timeline, meta, compact=False):
             p = doc.add_paragraph()
             p.paragraph_format.space_before = Pt(1)
             p.paragraph_format.space_after = Pt(1)
-            p.paragraph_format.line_spacing = 1.1
+            p.paragraph_format.line_spacing = 1.0
             head_run = p.add_run(category.upper() + "  ")
             set_font(head_run, FF_MONO, 7.5, INK)
             set_character_spacing(head_run, 1.0)

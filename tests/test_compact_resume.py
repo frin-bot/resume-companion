@@ -147,6 +147,29 @@ class CompactResumeTests(unittest.TestCase):
         self.assertIn("0563C1", colors)
         self.assertIn("single", underlines)
 
+    def test_experience_copy_is_plain_text_without_headcount_claim(self):
+        for compact in (True, False):
+            mr.build_document(self.timeline, self.meta, compact=compact)
+            text = _docx_text(self.out)
+            self.assertNotIn("300%", text)
+            self.assertNotIn("headcount", text.lower())
+            self.assertNotIn("](http", text)
+            self.assertNotIn("hyundainews.com", text)
+            self.assertNotIn("newsroom.porsche.com", text)
+            self.assertNotIn("toyotaconnected.com", text)
+            self.assertNotIn("prnewswire.com", text)
+            self.assertIn("Promoted twice in two years", text)
+            self.assertIn("all-electric Macan", text)
+            self.assertIn("from 7 to 35 employees", text)
+            self.assertIn("Supported QA for Hyundai Blue Link", text)
+
+    def test_plain_bullet_strips_markdown_links(self):
+        self.assertEqual(
+            mr.plain_bullet("Named an [Engadget finalist](https://example.com/a), then shipped."),
+            "Named an Engadget finalist, then shipped.",
+        )
+        self.assertNotIn("http", mr.plain_bullet("See https://example.com/path for details."))
+
     def test_default_build_still_includes_projects_for_job_search(self):
         mr.build_document(self.timeline, self.meta)
         text = _docx_text(self.out)

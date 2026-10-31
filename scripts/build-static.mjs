@@ -44,8 +44,17 @@ function replaceRegion(html, name, content) {
   return html.replace(pattern, `<!--static:${name}-->\n${body}\n<!--/static:${name}-->`);
 }
 
+function renderInline(value) {
+  // Escape first, then allow only http(s) markdown links through as anchors.
+  return esc(value).replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    (_, label, url) =>
+      `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`
+  );
+}
+
 function bullets(items) {
-  return (items || []).map(item => `        <li>${esc(item)}</li>`).join('\n');
+  return (items || []).map(item => `        <li>${renderInline(item)}</li>`).join('\n');
 }
 
 function heroMeta(meta) {
