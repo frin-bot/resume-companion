@@ -561,6 +561,10 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   box-shadow: 0 30px 60px -30px rgba(0,0,0,0.18);
   cursor: grab;
   touch-action: none;
+  /* Stay clear of the fixed tilt / theme / back-to-top controls. */
+  max-height: calc(100vh - 168px);
+  max-height: calc(100dvh - 168px);
+  overflow-y: auto;
 }
 .exp-card.dragging { cursor: grabbing; user-select: none; }
 .card-drag-handle {
@@ -606,6 +610,7 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   right: 0;
   top: 0;
   margin: 0;
+  pointer-events: none;
 }
 .card-promo-bodies { margin-top: 28px; }
 .card-promo-bodies .card-bullets { margin-top: 0; }
@@ -662,6 +667,30 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   transition: opacity 300ms ease, transform 300ms ease;
 }
 .bullet-mark { color: var(--accent); flex-shrink: 0; }
+.card-bullets li > span:last-child { min-width: 0; }
+.card-bullets a,
+.static-role a,
+.static-promo a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  overflow-wrap: anywhere;
+  transition: color 200ms ease, text-decoration-color 200ms ease;
+}
+.card-bullets a:hover,
+.static-role a:hover,
+.static-promo a:hover {
+  color: var(--accent);
+  text-decoration-color: currentColor;
+}
+.card-bullets a:focus-visible,
+.static-role a:focus-visible,
+.static-promo a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* Pin tooltips */
 .pin-tooltips {
@@ -1141,7 +1170,7 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 
   .exp-card {
     top: auto;
-    bottom: 16px;
+    bottom: 88px;
     left: 16px;
     right: 16px;
     width: auto;

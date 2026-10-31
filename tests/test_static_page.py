@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -16,6 +17,13 @@ def _esc(value: str) -> str:
         .replace(">", "&gt;")
         .replace('"', "&quot;")
     )
+
+
+_MD_LINK = re.compile(r"\[([^\]]+)\]\((https?://[^\s)]+)\)")
+
+
+def _visible_bullet(bullet: str) -> str:
+    return _MD_LINK.sub(r"\1", bullet)
 
 
 def _data():
@@ -74,11 +82,28 @@ class StaticPageTests(unittest.TestCase):
         for lang in meta["languages"]:
             self.assertIn(lang["name"], html)
         self.assertEqual([lang["name"] for lang in meta["languages"]], ["English", "Spanish"])
+        self.assertNotIn("300%", html)
+        experience = re.search(
+            r"<!--static:experience-->(.*)<!--/static:experience-->",
+            html,
+            re.S,
+        ).group(1)
+        experience_text = re.sub(r"<[^>]+>", "", experience)
         for stop in self.payload["timeline"]:
             self.assertIn(_esc(stop["title"]), html)
             self.assertIn(_esc(stop["org"]), html)
-            for bullet in stop["bullets"]:
-                self.assertIn(_esc(bullet), html)
+            role_bullets = list(stop["bullets"])
+            for promo in stop.get("promotions") or []:
+                role_bullets.extend(promo["bullets"])
+            for bullet in role_bullets:
+                self.assertIn(_esc(_visible_bullet(bullet)), experience_text)
+                if _MD_LINK.search(bullet):
+                    self.assertNotIn(bullet, html)
+                for label, url in _MD_LINK.findall(bullet):
+                    self.assertIn(
+                        f'<a href="{_esc(url)}" target="_blank" rel="noopener noreferrer">{_esc(label)}</a>',
+                        html,
+                    )
 
     def test_manifest_description_matches_headline(self):
         self.assertEqual(self.manifest["description"], self.payload["meta"]["titleLine"])

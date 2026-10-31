@@ -514,11 +514,29 @@ function afterHold(subProg) {
   return 0.35 + t * 0.65;
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Site bullets may include [label](https://...) links. Escape first, then
+// turn only http(s) markdown links into anchors. Anything else stays text.
+function renderBulletHtml(text) {
+  return escapeHtml(text).replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    (_, label, url) =>
+      `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`
+  );
+}
+
 function bulletList(bullets) {
   return bullets.map(b => `
     <li>
       <span class="bullet-mark">—</span>
-      <span>${b}</span>
+      <span>${renderBulletHtml(b)}</span>
     </li>
   `).join('');
 }
@@ -577,16 +595,27 @@ function applyPromo(cardEl, phase) {
   const dates = [...cardEl.querySelectorAll('.card-dates-stack .card-dates')];
   if (!titles.length || !phase) return;
   const shown = phase.in > 0 ? Math.min(phase.count - 1, phase.idx + 1) : phase.idx;
+  const opacities = titles.map((_, i) => (
+    i === phase.idx ? 1 - phase.out : (i === phase.idx + 1 ? phase.in : 0)
+  ));
+  // Later roles are painted on top. A fully faded role still sits in that
+  // stack, so only the role you're actually reading can take a click.
+  let top = 0;
+  opacities.forEach((o, i) => { if (o >= opacities[top]) top = i; });
   titles.forEach((el, i) => {
-    const o = i === phase.idx ? 1 - phase.out : (i === phase.idx + 1 ? phase.in : 0);
+    const o = opacities[i];
+    const receive = i === top && o > 0;
     el.style.opacity = String(o);
+    el.style.pointerEvents = receive ? 'auto' : 'none';
     el.toggleAttribute('aria-hidden', o < 0.5);
     if (bodies[i]) {
       bodies[i].style.opacity = String(o);
+      bodies[i].style.pointerEvents = receive ? 'auto' : 'none';
       bodies[i].toggleAttribute('aria-hidden', o < 0.5);
     }
     if (dates[i]) {
       dates[i].style.opacity = String(o);
+      dates[i].style.pointerEvents = receive ? 'auto' : 'none';
       dates[i].toggleAttribute('aria-hidden', o < 0.5);
     }
   });
