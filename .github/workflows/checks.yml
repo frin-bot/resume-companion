@@ -1,0 +1,27 @@
+name: Checks
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python test dependencies
+        run: python -m pip install python-docx pillow
+      - name: Static page matches resume data
+        run: node scripts/build-static.mjs --check
+      - name: Agent profile matches llms.txt
+        run: node scripts/sync-agent-profile.mjs --check
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
