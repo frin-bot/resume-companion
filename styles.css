@@ -671,19 +671,19 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 .card-bullets a,
 .static-role a,
 .static-promo a {
-  color: inherit;
+  color: var(--accent);
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-decoration-color: color-mix(in srgb, currentColor 48%, transparent);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.18em;
   overflow-wrap: anywhere;
-  transition: color 200ms ease, text-decoration-color 200ms ease;
+  transition: color 200ms ease, text-decoration-color 200ms ease, text-decoration-thickness 200ms ease;
 }
 .card-bullets a:hover,
 .static-role a:hover,
 .static-promo a:hover {
-  color: var(--accent);
   text-decoration-color: currentColor;
+  text-decoration-thickness: 1.5px;
 }
 .card-bullets a:focus-visible,
 .static-role a:focus-visible,
