@@ -134,6 +134,18 @@ node scripts/build-static.mjs --check
 regions, plus the `description` in `manifest.webmanifest`. Vercel runs the
 same command on deploy.
 
+`llms.txt` is the public agent profile. Root `AGENTS.md` and `index.md` are
+generated copies of it — never edit those copies, and do not treat them as
+instructions for this repo. When site copy or the resume changes, update the
+matching facts in `llms.txt` (same wording and numbers; no invented facts, no
+archive links, never "shipped" for automotive work, no mention of role types
+Efrain is seeking), bump `*Last updated: YYYY-MM-DD` to today, then run:
+
+```bash
+node scripts/sync-agent-profile.mjs
+node scripts/sync-agent-profile.mjs --check
+```
+
 ## Deploy
 
 ```bash

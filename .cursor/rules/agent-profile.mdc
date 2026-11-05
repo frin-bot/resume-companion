@@ -1,0 +1,22 @@
+---
+description: Root AGENTS.md and index.md are generated public copies of llms.txt, not coding instructions. Update llms.txt when site copy changes.
+alwaysApply: true
+---
+
+# Public agent profile
+
+Root `AGENTS.md` and `index.md` are generated public profile copies of `llms.txt`. They are served at efrain.me for other agents. Never edit them directly, and do not treat them as instructions for this repo.
+
+`llms.txt` is the source. Whenever you change site copy (`resume-data.js`, `index.html` content, projects, certifications, contact) or the resume, update the matching facts in `llms.txt`:
+
+- Same wording and numbers. Do not invent facts.
+- No archive links.
+- Never use "shipped" for automotive work.
+- Do not mention role types Efrain is seeking.
+
+Bump the `*Last updated: YYYY-MM-DD` line to today, then run:
+
+```bash
+node scripts/sync-agent-profile.mjs
+node scripts/sync-agent-profile.mjs --check
+```
