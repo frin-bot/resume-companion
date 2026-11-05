@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { renderCareerTimeline } from '../career-timeline.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const htmlPath = path.join(root, 'index.html');
@@ -176,6 +177,7 @@ function contact(meta) {
     </div>`;
 }
 
+
 function experience(timeline) {
   const roles = timeline.map(item => {
     const kind = item.type === 'education' ? 'Education' : 'Experience';
@@ -249,6 +251,7 @@ function renderHtml(html, meta, timeline) {
     languages: languages(meta),
     contact: contact(meta),
     experience: experience(timeline),
+    'career-gantt': renderCareerTimeline(timeline),
   };
   let next = html;
   for (const [name, content] of Object.entries(regions)) {

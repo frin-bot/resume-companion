@@ -937,6 +937,34 @@ function updateScene() {
   state.activeIdx = activeIdx;
 }
 
+function initCareerGantt() {
+  const root = document.getElementById('career-gantt');
+  if (!root) return;
+  const hits = [...root.querySelectorAll('.tl-hit')];
+
+  function show(btn) {
+    const title = btn.dataset.title || '';
+    const org = btn.dataset.org || '';
+    const dates = btn.dataset.dates || '';
+    const kind = btn.dataset.kind || '';
+    const meta = org && dates ? `${org} · ${dates}` : org || dates;
+    root.querySelectorAll('[data-tl-title]').forEach(el => { el.textContent = title; });
+    root.querySelectorAll('[data-tl-meta]').forEach(el => { el.textContent = meta; });
+    root.querySelectorAll('[data-tl-kind]').forEach(el => { el.textContent = kind; });
+    hits.forEach(el => el.classList.toggle('is-active', el === btn));
+  }
+
+  hits.forEach(btn => {
+    btn.removeAttribute('title');
+    btn.addEventListener('pointerenter', (event) => {
+      if (event.pointerType === 'touch') return;
+      show(btn);
+    });
+    btn.addEventListener('focus', () => show(btn));
+    btn.addEventListener('click', () => show(btn));
+  });
+}
+
 // ===== BOOT =====
 let rafPending = false;
 function onScroll() {
@@ -1335,6 +1363,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initThemeToggle();
   initBackToTop();
   initCardDrag();
+  initCareerGantt();
   initCardScrollLock();
   initLogoEasterEgg();
   const [statesData, countiesData] = await Promise.all([

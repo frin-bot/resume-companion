@@ -760,6 +760,245 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 .pin-tt-org { color: var(--ink-4); margin-top: 2px; }
 .pin-tt-years { color: var(--accent); margin-top: 2px; }
 
+/* ============== CAREER TIMELINE ============== */
+.career-gantt {
+  position: relative;
+  padding: 72px var(--pad) 56px;
+}
+.tl-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8px 32px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--rule);
+}
+.tl-head .section-label {
+  border-top: none;
+  flex: 1 1 180px;
+  margin: 0;
+}
+.tl-legend {
+  list-style: none;
+  display: flex;
+  gap: 18px;
+  margin: 0;
+  padding: 18px 0 32px;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.tl-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.tl-swatch {
+  width: 18px;
+  height: 6px;
+  background: var(--accent);
+  flex: none;
+}
+.tl-swatch.is-education { background: var(--ink); }
+.tl-kicker {
+  margin: 0 0 6px;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.tl-readout { margin: 0 0 28px; }
+.tl-readout-title {
+  margin: 0;
+  font-family: var(--ff-display);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--ink);
+}
+.tl-readout-title { font-size: clamp(22px, 2.6vw, 34px); }
+.tl-readout-meta {
+  margin: 8px 0 0;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.tl-details > summary {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 22px auto 0;
+  padding: 6px 4px;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.tl-details > summary::-webkit-details-marker { display: none; }
+.tl-details > summary::marker { content: ""; }
+.tl-details > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.tl-chevron {
+  width: 14px;
+  height: 14px;
+  display: block;
+  transition: transform 200ms ease;
+}
+.tl-details:not([open]) .tl-chevron { transform: rotate(180deg); }
+.tl-details[open] .tl-toggle-closed { display: none; }
+.tl-details:not([open]) .tl-toggle-open { display: none; }
+.tl-details:not([open]) > :not(summary) { display: none; }
+.tl-details[open] {
+  display: flex;
+  flex-direction: column;
+}
+.tl-details[open] > .tl-body { order: 1; }
+.tl-details[open] > summary { order: 2; }
+
+.tl-axis {
+  position: relative;
+  height: 28px;
+  border-top: 1px solid var(--rule);
+}
+.tl-axis span {
+  position: absolute;
+  top: 8px;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.tl-axis span.is-start { transform: none; }
+.tl-axis span.is-today { transform: translateX(-100%); }
+@media (max-width: 700px) {
+  .tl-axis span { font-size: 10px; letter-spacing: 0.04em; }
+  .tl-axis span.is-near-end { transform: translateX(calc(-100% - 8px)); }
+}
+
+/* A — staircase of rules */
+.tl-a-chart { padding-top: 4px; }
+.tl-plot {
+  position: relative;
+  height: calc(var(--lanes) * 42px);
+}
+.tl-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.tl-grid span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--rule);
+}
+.tl-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  inset: 0;
+}
+.career-gantt .tl-item {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 42px;
+  bottom: calc(var(--lane) * 42px);
+}
+.career-gantt .tl-label {
+  position: absolute;
+  left: 0;
+  width: var(--x);
+  top: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 12px;
+  font-family: var(--ff-display);
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.career-gantt .tl-item.is-origin .tl-label {
+  left: calc(var(--x) + max(var(--w), 28px) + 12px);
+  width: auto;
+  right: 0;
+  justify-content: flex-start;
+  padding-right: 0;
+}
+.career-gantt .tl-hit {
+  position: absolute;
+  left: var(--x);
+  width: max(var(--w), 28px);
+  top: 0;
+  bottom: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.career-gantt .tl-mark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+  background: var(--accent);
+}
+.career-gantt .tl-hit.is-education .tl-mark { background: var(--ink); }
+.career-gantt .tl-hit.is-active .tl-mark { height: 8px; }
+.career-gantt .tl-hit:focus { outline: none; }
+.career-gantt .tl-hit:focus-visible .tl-mark {
+  outline: 2px solid var(--ink);
+  outline-offset: 4px;
+}
+.career-gantt .tl-hit.is-active + .tl-label,
+.career-gantt .tl-item:has(.tl-hit.is-active) .tl-label { color: var(--accent); }
+@media (max-width: 700px) {
+  .career-gantt .tl-plot { height: calc(var(--lanes) * 58px); }
+  .career-gantt .tl-item { height: 58px; bottom: calc(var(--lane) * 58px); }
+  .career-gantt .tl-label,
+  .career-gantt .tl-item.is-origin .tl-label {
+    left: 0;
+    right: 0;
+    width: auto;
+    top: 0;
+    height: 22px;
+    bottom: auto;
+    justify-content: flex-start;
+    padding: 0;
+    font-size: 13px;
+  }
+  .career-gantt .tl-hit { top: 24px; bottom: 8px; }
+}
+
+@media (max-width: 640px) {
+  .tl-legend { width: 100%; padding-top: 0; padding-bottom: 16px; }
+}
+
 /* ============== SKILLS ============== */
 .skills {
   padding: 100px var(--pad);
@@ -1118,6 +1357,7 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 
   /* Tighten vertical rhythm so section headers sit closer to the top */
   .summary,
+  .career-gantt,
   .skills,
   .highlights,
   .projects,
@@ -1196,6 +1436,7 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   .pin-pulse { animation: none; }
   .card-bullets li { transition: none; }
   .hero-name .name-ai::before { animation: none; }
+  .tl-chevron { transition: none; }
 }
 
 /* Readable experience list when JavaScript is off. With JS, the noscript
