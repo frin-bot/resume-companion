@@ -424,9 +424,12 @@ def section_label(doc, number, label, compact=False):
     p.paragraph_format.space_before = Pt(3 if compact else 16)
     p.paragraph_format.space_after = Pt(1 if compact else 6)
     if compact:
-        # Plain heading, no section number, so extractors read one line.
+        # Normal spelling in the text layer ("Experience"). Accent, bold, and
+        # tracking make the heading read as a label, not a job title.
+        # Small caps are not used: LibreOffice writes them as uppercase.
         lbl = p.add_run(label)
-        set_font(lbl, FF_DISPLAY, 11, INK)
+        set_font(lbl, FF_MONO, 8.5, ACCENT, bold=True)
+        set_character_spacing(lbl, 1.2)
     else:
         num = p.add_run(f"{number}   ")
         set_font(num, FF_MONO, 9, INK_4)
@@ -469,6 +472,23 @@ def format_resume_dates(dates):
     text = (dates or "").replace("—", "-").replace("–", "-")
     text = re.sub(r"\s*-\s*", " - ", text)
     return re.sub(r"\s{2,}", " ", text).strip()
+
+
+def format_resume_title(title):
+    """Role titles on the resume use a comma, matching llms.txt."""
+    return (title or "").replace(" — ", ", ").replace(" – ", ", ")
+
+
+def format_org_line(org, city):
+    """Drop a city that already appears in the organization name."""
+    org = org or ""
+    city = city or ""
+    locality = city.split(",")[0].strip()
+    if locality and locality in org:
+        return org
+    if city:
+        return f"{org}, {city}"
+    return org
 
 
 def _place_picture_in_front(paragraph, image_path, width_inches):
@@ -550,10 +570,12 @@ def _tight_paragraph(doc, before=0, after=0):
 
 def add_compact_role(doc, item, before=2):
     head = _tight_paragraph(doc, before=before, after=0)
-    title = head.add_run(f"{item['title']}, {format_resume_dates(item['dates'])}")
-    set_font(title, FF_DISPLAY, 11, INK)
+    title = head.add_run(format_resume_title(item["title"]))
+    set_font(title, FF_DISPLAY, 11, INK, bold=True)
+    dates = head.add_run(f", {format_resume_dates(item['dates'])}")
+    set_font(dates, FF_DISPLAY, 11, INK)
     meta = _tight_paragraph(doc, before=0, after=1)
-    org = meta.add_run(f"{item['org']}, {item['city']}")
+    org = meta.add_run(format_org_line(item["org"], item["city"]))
     set_font(org, FF_MONO, 8, INK_2)
     bullets = item["resumeBullets"] if "resumeBullets" in item else item.get("bullets", [])
     for bullet in bullets:
@@ -570,8 +592,10 @@ def add_compact_gemmacon(doc, item):
     # Newest title first, matching the rest of the page.
     for promo in reversed(item.get("promotions") or []):
         line = _tight_paragraph(doc, before=0, after=0)
-        run = line.add_run(f"{promo['title']}, {format_resume_dates(promo['dates'])}")
-        set_font(run, FF_DISPLAY, 10.5, INK)
+        run = line.add_run(format_resume_title(promo["title"]))
+        set_font(run, FF_DISPLAY, 10.5, INK, bold=True)
+        dates = line.add_run(f", {format_resume_dates(promo['dates'])}")
+        set_font(dates, FF_DISPLAY, 10.5, INK)
     bullets = item["resumeBullets"] if "resumeBullets" in item else item.get("bullets", [])
     for bullet in bullets:
         add_bullet(doc, plain_bullet(bullet), compact=True)

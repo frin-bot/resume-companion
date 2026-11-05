@@ -73,8 +73,14 @@ class ResumePdfTests(unittest.TestCase):
             "Director of AI Deployment & Solutions, Apr 2025 - Present",
             "Head of Business Development and Engineering, Apr 2024 - Mar 2025",
             "OTA Test Manager, Apr 2023 - Mar 2024",
+            "Senior Test Engineer, Connected Services, Mar 2020 - Dec 2022",
+            "Quality Engineer, Telematics, Mar 2013 - Mar 2017",
+            "California State University, Long Beach",
         ):
             self.assertIn(line, flat)
+        self.assertNotIn("Long Beach, Long Beach", flat)
+        self.assertNotIn("Senior Test Engineer —", self.text)
+        self.assertNotIn("Quality Engineer —", self.text)
         for label, body in self.meta["resumeSkills"].items():
             rendered = label.upper()
             self.assertLess(flat.find(rendered), flat.find(body), rendered)
