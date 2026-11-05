@@ -939,28 +939,87 @@ function updateScene() {
 
 function initCareerGantt() {
   const root = document.getElementById('career-gantt');
-  const titleEl = root?.querySelector('.gantt-readout-title');
-  const metaEl = root?.querySelector('.gantt-readout-meta');
-  if (!root || !titleEl || !metaEl) return;
-  const bars = [...root.querySelectorAll('.gantt-bar')];
+  if (!root) return;
+  const hits = [...root.querySelectorAll('.tl-hit')];
 
   function show(btn) {
-    titleEl.textContent = btn.dataset.title || '';
+    const title = btn.dataset.title || '';
     const org = btn.dataset.org || '';
     const dates = btn.dataset.dates || '';
-    metaEl.textContent = org && dates ? `${org} · ${dates}` : org || dates;
-    bars.forEach(el => el.classList.toggle('is-active', el === btn));
+    const kind = btn.dataset.kind || '';
+    const meta = org && dates ? `${org} · ${dates}` : org || dates;
+    root.querySelectorAll('[data-tl-title]').forEach(el => { el.textContent = title; });
+    root.querySelectorAll('[data-tl-meta]').forEach(el => { el.textContent = meta; });
+    root.querySelectorAll('[data-tl-kind]').forEach(el => { el.textContent = kind; });
+    hits.forEach(el => el.classList.toggle('is-active', el === btn));
   }
 
-  bars.forEach(btn => {
+  hits.forEach(btn => {
     btn.removeAttribute('title');
     btn.addEventListener('pointerenter', (event) => {
       if (event.pointerType === 'touch') return;
+      if (root.dataset.variant === 'c' && !root.classList.contains('is-reduced')) return;
       show(btn);
     });
     btn.addEventListener('focus', () => show(btn));
-    btn.addEventListener('click', () => show(btn));
+    btn.addEventListener('click', () => {
+      if (root.dataset.variant !== 'c' || root.classList.contains('is-reduced')) show(btn);
+    });
   });
+
+  if (root.dataset.variant === 'c') initTimelineScrub(root, hits, show);
+}
+
+function initTimelineScrub(root, hits, show) {
+  const scrub = root.querySelector('.tl-scrub');
+  if (!scrub) return;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const scaleStart = Number(scrub.dataset.scaleStart);
+  const scaleEnd = Number(scrub.dataset.scaleEnd);
+  const span = scaleEnd - scaleStart;
+  const yearEl = root.querySelector('[data-tl-year]');
+  const fill = root.querySelector('[data-tl-fill]');
+  const head = root.querySelector('[data-tl-head]');
+
+  function apply(progress) {
+    const p = Math.min(1, Math.max(0, progress));
+    const abs = scaleStart + p * Math.max(span - 0.001, 0);
+    if (yearEl) yearEl.textContent = String(Math.floor(abs / 12));
+    const pct = `${(p * 100).toFixed(3)}%`;
+    if (fill) fill.style.setProperty('--p', pct);
+    if (head) head.style.setProperty('--p', pct);
+    let idx = hits.findIndex(hit => abs < Number(hit.dataset.end));
+    if (idx < 0) idx = hits.length - 1;
+    if (hits[idx]) show(hits[idx]);
+  }
+
+  if (reduce || !Number.isFinite(span) || span <= 0) {
+    root.classList.add('is-reduced');
+    apply(1);
+    return;
+  }
+
+  function update() {
+    if (!scrub.isConnected || scrub.getClientRects().length === 0) return;
+    const rect = scrub.getBoundingClientRect();
+    const travel = scrub.offsetHeight - window.innerHeight;
+    const scrolled = Math.min(Math.max(-rect.top, 0), Math.max(travel, 0));
+    apply(travel > 0 ? scrolled / travel : 1);
+  }
+
+  hits.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const start = Number(btn.dataset.start);
+      if (!Number.isFinite(start)) return;
+      const p = (start - scaleStart) / span;
+      const top = scrub.getBoundingClientRect().top + window.scrollY + p * (scrub.offsetHeight - window.innerHeight);
+      window.scrollTo({ top, behavior: 'smooth' });
+    });
+  });
+
+  window.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  update();
 }
 
 // ===== BOOT =====

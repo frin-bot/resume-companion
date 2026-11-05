@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=10">
+  <link rel="stylesheet" href="styles.css?v=11">
   <script>
     (function(){
       document.documentElement.classList.add('js');
@@ -311,112 +311,140 @@
 </section>
 
 <!--static:career-gantt-->
-  <section class="career-gantt" id="career-gantt" aria-labelledby="career-gantt-heading">
-    <div class="gantt-head">
+<section class="career-gantt timeline-b" id="career-gantt" data-variant="b" aria-labelledby="career-gantt-heading">
+    <div class="tl-head">
       <div class="section-label">
         <span class="lbl" id="career-gantt-heading">Timeline</span>
       </div>
-      <ul class="gantt-legend">
-        <li><span class="gantt-swatch is-experience"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z"/><path d="M8 7v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2"/><path d="M12 12l0 .01"/><path d="M3 13a20 20 0 0 0 18 0"/></svg></span> Experience</li>
-        <li><span class="gantt-swatch is-education"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 9l-10 -4l-10 4l10 4l10 -4v6"/><path d="M6 10.6v5.4a6 3 0 0 0 12 0v-5.4"/></svg></span> Education</li>
-      </ul>
+      
     </div>
-    <div class="gantt-readout" id="gantt-readout">
-      <p class="gantt-readout-title">Director of AI Deployment &amp; Solutions</p>
-      <p class="gantt-readout-meta">GEMMACON North America · Apr 2025 — Present</p>
-    </div>
-    <details class="gantt-details" open>
-      <div class="gantt-body" id="career-gantt-chart">
-        <div class="gantt-scroll" role="group" aria-label="Career timeline chart">
-          <div class="gantt-canvas" style="--lanes:8">
-            <div class="gantt-plot">
-              <div class="gantt-grid" aria-hidden="true">
-            <span class="is-start" style="left:0.0000%"></span>
-            <span style="left:21.0526%"></span>
-            <span style="left:42.1053%"></span>
-            <span style="left:63.1579%"></span>
-            <span class="is-optional" style="left:84.2105%"></span>
-            <span class="is-today" style="left:100.0000%"></span>
-              </div>
-              <ol class="gantt-bars">
-          <li class="gantt-item" style="--x:0.0000%;--w:26.3158%;--lane:0">
-            <span class="gantt-label">Bachelor of Science, Computer Science</span>
-            <button type="button" class="gantt-bar is-education" data-title="Bachelor of Science, Computer Science" data-org="California State University, Long Beach" data-dates="2008 — 2012" aria-label="Education. Bachelor of Science, Computer Science. California State University, Long Beach. 2008 — 2012." title="Education. Bachelor of Science, Computer Science. California State University, Long Beach. 2008 — 2012.">
-              <span class="gantt-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 9l-10 -4l-10 4l10 4l10 -4v6"/><path d="M6 10.6v5.4a6 3 0 0 0 12 0v-5.4"/></svg><span class="gantt-bar-name">Bachelor of Science, Computer Science</span></span>
-            </button>
-          </li>
-          <li class="gantt-item" style="--x:27.1930%;--w:21.0526%;--lane:1">
-            <span class="gantt-label">Quality Engineer — Telematics</span>
-            <button type="button" class="gantt-bar is-experience" data-title="Quality Engineer — Telematics" data-org="Hyundai Autoever Telematics America" data-dates="Mar 2013 — Mar 2017" aria-label="Experience. Quality Engineer — Telematics. Hyundai Autoever Telematics America. Mar 2013 — Mar 2017." title="Experience. Quality Engineer — Telematics. Hyundai Autoever Telematics America. Mar 2013 — Mar 2017.">
-              <span class="gantt-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z"/><path d="M8 7v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2"/><path d="M12 12l0 .01"/><path d="M3 13a20 20 0 0 0 18 0"/></svg><span class="gantt-bar-name">Quality Engineer — Telematics</span></span>
-            </button>
-          </li>
-          <li class="gantt-item is-labeled" style="--x:48.2456%;--w:15.7895%;--lane:2">
-            <span class="gantt-label">End-to-End Quality Engineer</span>
-            <button type="button" class="gantt-bar is-experience" data-title="End-to-End Quality Engineer" data-org="Mercedes-Benz R&amp;D North America" data-dates="Mar 2017 — Mar 2020" aria-label="Experience. End-to-End Quality Engineer. Mercedes-Benz R&amp;D North America. Mar 2017 — Mar 2020." title="Experience. End-to-End Quality Engineer. Mercedes-Benz R&amp;D North America. Mar 2017 — Mar 2020.">
-              <span class="gantt-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z"/><path d="M8 7v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2"/><path d="M12 12l0 .01"/><path d="M3 13a20 20 0 0 0 18 0"/></svg><span class="gantt-bar-name">End-to-End Quality Engineer</span></span>
-            </button>
-          </li>
-          <li class="gantt-item is-labeled" style="--x:64.0351%;--w:14.4737%;--lane:3">
-            <span class="gantt-label">Senior Test Engineer — Connected Services</span>
-            <button type="button" class="gantt-bar is-experience" data-title="Senior Test Engineer — Connected Services" data-org="Toyota Motor North America" data-dates="Mar 2020 — Dec 2022" aria-label="Experience. Senior Test Engineer — Connected Services. Toyota Motor North America. Mar 2020 — Dec 2022." title="Experience. Senior Test Engineer — Connected Services. Toyota Motor North America. Mar 2020 — Dec 2022.">
-              <span class="gantt-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z"/><path d="M8 7v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2"/><path d="M12 12l0 .01"/><path d="M3 13a20 20 0 0 0 18 0"/></svg><span class="gantt-bar-name">Senior Test Engineer — Connected Services</span></span>
-            </button>
-          </li>
-          <li class="gantt-item is-labeled" style="--x:78.5088%;--w:1.7544%;--lane:4">
-            <span class="gantt-label">Lead Test Engineer</span>
-            <button type="button" class="gantt-bar is-experience" data-title="Lead Test Engineer" data-org="PACCAR" data-dates="Dec 2022 — Apr 2023" aria-label="Experience. Lead Test Engineer. PACCAR. Dec 2022 — Apr 2023." title="Experience. Lead Test Engineer. PACCAR. Dec 2022 — Apr 2023.">
-              <span class="gantt-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z"/><path d="M8 7v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2"/><path d="M12 12l0 .01"/><path d="M3 13a20 20 0 0 0 18 0"/></svg><span class="gantt-bar-name">Lead Test Engineer</span></span>
-            </button>
-          </li>
-          <li class="gantt-item is-labeled" style="--x:80.2632%;--w:4.8246%;--lane:5">
-            <span class="gantt-label">OTA Test Manager</span>
-            <button type="button" class="gantt-bar is-experience" data-title="OTA Test Manager" data-org="GEMMACON North America" data-dates="Apr 2023 — Mar 2024" aria-label="Experience. OTA Test Manager. GEMMACON North America. Apr 2023 — Mar 2024." title="Experience. OTA Test Manager. GEMMACON North America. Apr 2023 — Mar 2024.">
-              <span class="gantt-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z"/><path d="M8 7v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2"/><path d="M12 12l0 .01"/><path d="M3 13a20 20 0 0 0 18 0"/></svg><span class="gantt-bar-name">OTA Test Manager</span></span>
-            </button>
-          </li>
-          <li class="gantt-item is-labeled" style="--x:85.5263%;--w:4.8246%;--lane:6">
-            <span class="gantt-label">Head of Business Development and Engineering</span>
-            <button type="button" class="gantt-bar is-experience" data-title="Head of Business Development and Engineering" data-org="GEMMACON North America" data-dates="Apr 2024 — Mar 2025" aria-label="Experience. Head of Business Development and Engineering. GEMMACON North America. Apr 2024 — Mar 2025." title="Experience. Head of Business Development and Engineering. GEMMACON North America. Apr 2024 — Mar 2025.">
-              <span class="gantt-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z"/><path d="M8 7v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2"/><path d="M12 12l0 .01"/><path d="M3 13a20 20 0 0 0 18 0"/></svg><span class="gantt-bar-name">Head of Business Development and Engineering</span></span>
-            </button>
-          </li>
-          <li class="gantt-item is-labeled" style="--x:90.7895%;--w:9.2105%;--lane:7">
-            <span class="gantt-label">Director of AI Deployment &amp; Solutions</span>
-            <button type="button" class="gantt-bar is-experience is-active" data-title="Director of AI Deployment &amp; Solutions" data-org="GEMMACON North America" data-dates="Apr 2025 — Present" aria-label="Experience. Director of AI Deployment &amp; Solutions. GEMMACON North America. Apr 2025 — Present." title="Experience. Director of AI Deployment &amp; Solutions. GEMMACON North America. Apr 2025 — Present.">
-              <span class="gantt-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z"/><path d="M8 7v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2"/><path d="M12 12l0 .01"/><path d="M3 13a20 20 0 0 0 18 0"/></svg><span class="gantt-bar-name">Director of AI Deployment &amp; Solutions</span></span>
-            </button>
-          </li>
-              </ol>
-            </div>
-            <div class="gantt-axis" aria-hidden="true">
-            <span class="is-start" style="left:0.0000%">2008</span>
-            <span style="left:21.0526%">2012</span>
-            <span style="left:42.1053%">2016</span>
-            <span style="left:63.1579%">2020</span>
-            <span class="is-optional" style="left:84.2105%">2024</span>
-            <span class="is-today" style="left:100.0000%">Today</span>
-            </div>
-          </div>
+    <details class="tl-details" open>
+      <div class="tl-body" id="career-gantt-chart">
+        <div class="tl-scale" aria-hidden="true">
+          <div class="tl-axis"><span class="is-start" style="left:0.0000%">2008</span><span style="left:21.0526%">2012</span><span style="left:42.1053%">2016</span><span style="left:63.1579%">2020</span><span class="is-near-end" style="left:84.2105%">2024</span><span class="is-today" style="left:100.0000%">Today</span></div>
         </div>
+        <ol class="tl-index"><li>
+      <button type="button" class="tl-hit is-education" data-kind="Education" data-title="Bachelor of Science, Computer Science" data-org="California State University, Long Beach" data-dates="2008 — 2012" aria-label="Education. Bachelor of Science, Computer Science. California State University, Long Beach. 2008 — 2012." title="Education. Bachelor of Science, Computer Science. California State University, Long Beach. 2008 — 2012." data-start="24096" data-end="24156">
+        <span class="tl-index-copy">
+          <span class="tl-kicker">Education</span>
+          <span class="tl-index-title">Bachelor of Science, Computer Science</span>
+          <span class="tl-index-org">California State University, Long Beach</span>
+        </span>
+        <span class="tl-index-dates">2008 — 2012</span>
+        <span class="tl-index-rule" aria-hidden="true">
+          <span class="tl-index-mark" style="left:0.0000%;width:26.3158%"></span>
+        </span>
+      </button>
+    </li>
+<li>
+      <button type="button" class="tl-hit is-experience" data-kind="Experience" data-title="Quality Engineer — Telematics" data-org="Hyundai Autoever Telematics America" data-dates="Mar 2013 — Mar 2017" aria-label="Experience. Quality Engineer — Telematics. Hyundai Autoever Telematics America. Mar 2013 — Mar 2017." title="Experience. Quality Engineer — Telematics. Hyundai Autoever Telematics America. Mar 2013 — Mar 2017." data-start="24158" data-end="24206">
+        <span class="tl-index-copy">
+          <span class="tl-kicker">Experience</span>
+          <span class="tl-index-title">Quality Engineer — Telematics</span>
+          <span class="tl-index-org">Hyundai Autoever Telematics America</span>
+        </span>
+        <span class="tl-index-dates">Mar 2013 — Mar 2017</span>
+        <span class="tl-index-rule" aria-hidden="true">
+          <span class="tl-index-mark" style="left:27.1930%;width:21.0526%"></span>
+        </span>
+      </button>
+    </li>
+<li>
+      <button type="button" class="tl-hit is-experience" data-kind="Experience" data-title="End-to-End Quality Engineer" data-org="Mercedes-Benz R&amp;D North America" data-dates="Mar 2017 — Mar 2020" aria-label="Experience. End-to-End Quality Engineer. Mercedes-Benz R&amp;D North America. Mar 2017 — Mar 2020." title="Experience. End-to-End Quality Engineer. Mercedes-Benz R&amp;D North America. Mar 2017 — Mar 2020." data-start="24206" data-end="24242">
+        <span class="tl-index-copy">
+          <span class="tl-kicker">Experience</span>
+          <span class="tl-index-title">End-to-End Quality Engineer</span>
+          <span class="tl-index-org">Mercedes-Benz R&amp;D North America</span>
+        </span>
+        <span class="tl-index-dates">Mar 2017 — Mar 2020</span>
+        <span class="tl-index-rule" aria-hidden="true">
+          <span class="tl-index-mark" style="left:48.2456%;width:15.7895%"></span>
+        </span>
+      </button>
+    </li>
+<li>
+      <button type="button" class="tl-hit is-experience" data-kind="Experience" data-title="Senior Test Engineer — Connected Services" data-org="Toyota Motor North America" data-dates="Mar 2020 — Dec 2022" aria-label="Experience. Senior Test Engineer — Connected Services. Toyota Motor North America. Mar 2020 — Dec 2022." title="Experience. Senior Test Engineer — Connected Services. Toyota Motor North America. Mar 2020 — Dec 2022." data-start="24242" data-end="24275">
+        <span class="tl-index-copy">
+          <span class="tl-kicker">Experience</span>
+          <span class="tl-index-title">Senior Test Engineer — Connected Services</span>
+          <span class="tl-index-org">Toyota Motor North America</span>
+        </span>
+        <span class="tl-index-dates">Mar 2020 — Dec 2022</span>
+        <span class="tl-index-rule" aria-hidden="true">
+          <span class="tl-index-mark" style="left:64.0351%;width:14.4737%"></span>
+        </span>
+      </button>
+    </li>
+<li>
+      <button type="button" class="tl-hit is-experience" data-kind="Experience" data-title="Lead Test Engineer" data-org="PACCAR" data-dates="Dec 2022 — Apr 2023" aria-label="Experience. Lead Test Engineer. PACCAR. Dec 2022 — Apr 2023." title="Experience. Lead Test Engineer. PACCAR. Dec 2022 — Apr 2023." data-start="24275" data-end="24279">
+        <span class="tl-index-copy">
+          <span class="tl-kicker">Experience</span>
+          <span class="tl-index-title">Lead Test Engineer</span>
+          <span class="tl-index-org">PACCAR</span>
+        </span>
+        <span class="tl-index-dates">Dec 2022 — Apr 2023</span>
+        <span class="tl-index-rule" aria-hidden="true">
+          <span class="tl-index-mark" style="left:78.5088%;width:1.7544%"></span>
+        </span>
+      </button>
+    </li>
+<li>
+      <button type="button" class="tl-hit is-experience" data-kind="Experience" data-title="OTA Test Manager" data-org="GEMMACON North America" data-dates="Apr 2023 — Mar 2024" aria-label="Experience. OTA Test Manager. GEMMACON North America. Apr 2023 — Mar 2024." title="Experience. OTA Test Manager. GEMMACON North America. Apr 2023 — Mar 2024." data-start="24279" data-end="24290">
+        <span class="tl-index-copy">
+          <span class="tl-kicker">Experience</span>
+          <span class="tl-index-title">OTA Test Manager</span>
+          <span class="tl-index-org">GEMMACON North America</span>
+        </span>
+        <span class="tl-index-dates">Apr 2023 — Mar 2024</span>
+        <span class="tl-index-rule" aria-hidden="true">
+          <span class="tl-index-mark" style="left:80.2632%;width:4.8246%"></span>
+        </span>
+      </button>
+    </li>
+<li>
+      <button type="button" class="tl-hit is-experience" data-kind="Experience" data-title="Head of Business Development and Engineering" data-org="GEMMACON North America" data-dates="Apr 2024 — Mar 2025" aria-label="Experience. Head of Business Development and Engineering. GEMMACON North America. Apr 2024 — Mar 2025." title="Experience. Head of Business Development and Engineering. GEMMACON North America. Apr 2024 — Mar 2025." data-start="24291" data-end="24302">
+        <span class="tl-index-copy">
+          <span class="tl-kicker">Experience</span>
+          <span class="tl-index-title">Head of Business Development and Engineering</span>
+          <span class="tl-index-org">GEMMACON North America</span>
+        </span>
+        <span class="tl-index-dates">Apr 2024 — Mar 2025</span>
+        <span class="tl-index-rule" aria-hidden="true">
+          <span class="tl-index-mark" style="left:85.5263%;width:4.8246%"></span>
+        </span>
+      </button>
+    </li>
+<li>
+      <button type="button" class="tl-hit is-active is-experience" data-kind="Experience" data-title="Director of AI Deployment &amp; Solutions" data-org="GEMMACON North America" data-dates="Apr 2025 — Present" aria-label="Experience. Director of AI Deployment &amp; Solutions. GEMMACON North America. Apr 2025 — Present." title="Experience. Director of AI Deployment &amp; Solutions. GEMMACON North America. Apr 2025 — Present." data-start="24303" data-end="24324">
+        <span class="tl-index-copy">
+          <span class="tl-kicker">Experience</span>
+          <span class="tl-index-title">Director of AI Deployment &amp; Solutions</span>
+          <span class="tl-index-org">GEMMACON North America</span>
+        </span>
+        <span class="tl-index-dates">Apr 2025 — Present</span>
+        <span class="tl-index-rule" aria-hidden="true">
+          <span class="tl-index-mark" style="left:90.7895%;width:9.2105%"></span>
+        </span>
+      </button>
+    </li></ol>
       </div>
       <summary>
-        <span class="gantt-toggle-open">Collapse <span class="visually-hidden">timeline</span></span>
-        <span class="gantt-toggle-closed">Expand <span class="visually-hidden">timeline</span></span>
-        <svg class="gantt-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6 -6l6 6"/></svg>
+        <span class="tl-toggle-open">Collapse <span class="visually-hidden">timeline</span></span>
+        <span class="tl-toggle-closed">Expand <span class="visually-hidden">timeline</span></span>
+        <svg class="tl-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6 -6l6 6"/></svg>
       </summary>
     </details>
     <div class="visually-hidden" id="career-gantt-text">
       <p>Career timeline as text.</p>
       <ol>
-        <li>Education. Bachelor of Science, Computer Science. California State University, Long Beach. 2008 — 2012.</li>
-        <li>Experience. Quality Engineer — Telematics. Hyundai Autoever Telematics America. Mar 2013 — Mar 2017.</li>
-        <li>Experience. End-to-End Quality Engineer. Mercedes-Benz R&amp;D North America. Mar 2017 — Mar 2020.</li>
-        <li>Experience. Senior Test Engineer — Connected Services. Toyota Motor North America. Mar 2020 — Dec 2022.</li>
-        <li>Experience. Lead Test Engineer. PACCAR. Dec 2022 — Apr 2023.</li>
-        <li>Experience. OTA Test Manager. GEMMACON North America. Apr 2023 — Mar 2024.</li>
-        <li>Experience. Head of Business Development and Engineering. GEMMACON North America. Apr 2024 — Mar 2025.</li>
-        <li>Experience. Director of AI Deployment &amp; Solutions. GEMMACON North America. Apr 2025 — Present.</li>
+<li>Education. Bachelor of Science, Computer Science. California State University, Long Beach. 2008 — 2012.</li>
+<li>Experience. Quality Engineer — Telematics. Hyundai Autoever Telematics America. Mar 2013 — Mar 2017.</li>
+<li>Experience. End-to-End Quality Engineer. Mercedes-Benz R&amp;D North America. Mar 2017 — Mar 2020.</li>
+<li>Experience. Senior Test Engineer — Connected Services. Toyota Motor North America. Mar 2020 — Dec 2022.</li>
+<li>Experience. Lead Test Engineer. PACCAR. Dec 2022 — Apr 2023.</li>
+<li>Experience. OTA Test Manager. GEMMACON North America. Apr 2023 — Mar 2024.</li>
+<li>Experience. Head of Business Development and Engineering. GEMMACON North America. Apr 2024 — Mar 2025.</li>
+<li>Experience. Director of AI Deployment &amp; Solutions. GEMMACON North America. Apr 2025 — Present.</li>
       </ol>
     </div>
   </section>
@@ -606,6 +634,7 @@
 </button>
 
 <script src="resume-data.js?v=13"></script>
-<script src="app.js?v=19"></script>
+<script type="module" src="career-timeline.mjs?v=1"></script>
+<script src="app.js?v=20"></script>
 </body>
 </html>
