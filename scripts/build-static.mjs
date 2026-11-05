@@ -66,7 +66,6 @@ function heroMeta(meta) {
     <div>
       <div class="meta-label">Contact</div>
       <div class="meta-val"><a href="mailto:${esc(meta.email)}">${esc(meta.email)}</a></div>
-      <div class="meta-val dim">${esc(meta.phone)}</div>
     </div>
     <div>
       <div class="meta-label">Profile</div>
@@ -158,10 +157,6 @@ function contact(meta) {
   return `    <div class="contact-line">
       ${icon('Email', '<path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10" /><path d="M3 7l9 6l9 -6" />')}
       <a class="v" href="mailto:${esc(meta.email)}">${esc(meta.email)}</a>
-    </div>
-    <div class="contact-line">
-      ${icon('Phone', '<path d="M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5 5l1.5 -2.5l5 2v4a2 2 0 0 1 -2 2a16 16 0 0 1 -15 -15a2 2 0 0 1 2 -2" />')}
-      <span class="v">${esc(meta.phone)}</span>
     </div>
     <div class="contact-line">
       ${icon('LinkedIn', '<path d="M4 4m0 2a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z" /><path d="M8 11l0 5" /><path d="M8 8l0 .01" /><path d="M12 16l0 -5" /><path d="M16 16v-3a2 2 0 0 0 -4 0" />')}

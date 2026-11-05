@@ -7,7 +7,7 @@ from pathlib import Path
 
 from docx import Document
 from docx.enum.table import WD_ALIGN_VERTICAL
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -155,6 +155,10 @@ def render_name_with_ai_glow(name, out_path, pt_size):
 
     scale = 8  # pixels per point, so the halo stays sharp in Word
     font = ImageFont.truetype(str(font_path), int(round(pt_size * scale)))
+    try:
+        font.set_variation_by_axes([400])
+    except Exception:
+        pass
     prefix = name[:idx]
     ascent, descent = font.getmetrics()
     em = font.size
@@ -206,9 +210,14 @@ def render_name_with_ai_glow(name, out_path, pt_size):
     canvas.alpha_composite(glow)
     canvas.alpha_composite(letters)
     cropped = canvas.crop(canvas.getbbox())
+    # Opaque white plate, a couple of points larger than the glyphs. On a white
+    # page it matches the transparent PNG, and it covers the text layer behind it.
+    margin = max(2, int(round(scale * 4)))
+    plate = Image.new("RGBA", (cropped.width + margin * 2, cropped.height + margin * 2), (255, 255, 255, 255))
+    plate.alpha_composite(cropped, (margin, margin))
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    cropped.save(out_path, "PNG")
-    return out_path, cropped.width / (scale * 72)
+    plate.save(out_path, "PNG")
+    return out_path, plate.width / (scale * 72)
 
 
 def load_data():
@@ -341,28 +350,27 @@ def contact_lines(meta):
     info = []
     if meta.get("location"):
         info.append((meta["location"].upper(), None))
-    if meta.get("phone"):
-        info.append((meta["phone"].upper(), None))
     email = meta.get("email")
     if email:
-        info.append((email.upper(), f"mailto:{email}"))
+        info.append((email, f"mailto:{email}"))
     profiles = []
     for key in ("linkedin", "x", "github"):
         v = meta.get(key)
         if v:
-            profiles.append((v.upper(), _abs_url(v)))
+            profiles.append((v, _abs_url(v)))
     return info, profiles
 
 
-def add_centered_bits(doc, bits, size=8, space=1.0, after=2, color=INK_2):
+def add_centered_bits(doc, bits, size=8, space=1.0, after=2, color=INK_2, sep_text="   ·   "):
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_after = Pt(after)
     for i, bit in enumerate(bits):
         if i > 0:
-            sep = p.add_run("   ·   ")
+            sep = p.add_run(sep_text)
             set_font(sep, FF_MONO, size, color)
-            set_character_spacing(sep, space)
+            if space:
+                set_character_spacing(sep, space)
         text, url = bit if isinstance(bit, tuple) else (bit, None)
         if url:
             add_hyperlink(p, text, url, FF_MONO, size, color, spacing=space)
@@ -413,14 +421,19 @@ def add_bottom_border(paragraph, color=RULE, size=4):
 def section_label(doc, number, label, compact=False):
     p = doc.add_paragraph()
     # Compact space-before stays small so the one-page PDF still clears the footer.
-    p.paragraph_format.space_before = Pt(6 if compact else 16)
-    p.paragraph_format.space_after = Pt(3 if compact else 6)
-    num = p.add_run(f"{number}   ")
-    set_font(num, FF_MONO, 8 if compact else 9, INK_4)
-    set_character_spacing(num, 1.0)
-    lbl = p.add_run(label.upper())
-    set_font(lbl, FF_MONO, 8 if compact else 9, INK)
-    set_character_spacing(lbl, 1.5)
+    p.paragraph_format.space_before = Pt(3 if compact else 16)
+    p.paragraph_format.space_after = Pt(1 if compact else 6)
+    if compact:
+        # Plain heading, no section number, so extractors read one line.
+        lbl = p.add_run(label)
+        set_font(lbl, FF_DISPLAY, 11, INK)
+    else:
+        num = p.add_run(f"{number}   ")
+        set_font(num, FF_MONO, 9, INK_4)
+        set_character_spacing(num, 1.0)
+        lbl = p.add_run(label.upper())
+        set_font(lbl, FF_MONO, 9, INK)
+        set_character_spacing(lbl, 1.5)
     add_bottom_border(p, RULE)
     return p
 
@@ -447,17 +460,132 @@ def plain_bullet(text: str) -> str:
     """
     text = _MD_LINK_RE.sub(r"\1", text or "")
     text = _BARE_URL_RE.sub("", text)
+    text = text.replace("E³", "E3")
     return re.sub(r"[ \t]{2,}", " ", text).strip()
+
+
+def format_resume_dates(dates):
+    """'Mar 2017 — Mar 2020' -> 'Mar 2017 - Mar 2020'. Months stay title case."""
+    text = (dates or "").replace("—", "-").replace("–", "-")
+    text = re.sub(r"\s*-\s*", " - ", text)
+    return re.sub(r"\s{2,}", " ", text).strip()
+
+
+def _place_picture_in_front(paragraph, image_path, width_inches):
+    """Float the picture over the paragraph text, centered, same width.
+
+    The text run is already in the paragraph. behindDoc=0 paints the image
+    in front of that text. Returns the picture height in points.
+    """
+    run = paragraph.add_run()
+    run.add_picture(str(image_path), width=Inches(width_inches))
+    drawing = run._element.find(qn("w:drawing"))
+    inline = drawing.find(qn("wp:inline"))
+    extent = inline.find(qn("wp:extent"))
+    cx, cy = extent.get("cx"), extent.get("cy")
+    doc_pr = inline.find(qn("wp:docPr"))
+    graphic = inline.find(qn("a:graphic"))
+
+    anchor = OxmlElement("wp:anchor")
+    for attr, val in {
+        "distT": "0",
+        "distB": "0",
+        "distL": "0",
+        "distR": "0",
+        "simplePos": "0",
+        "relativeHeight": "251658240",
+        "behindDoc": "0",
+        "locked": "0",
+        "layoutInCell": "1",
+        "allowOverlap": "1",
+    }.items():
+        anchor.set(attr, val)
+
+    simple = OxmlElement("wp:simplePos")
+    simple.set("x", "0")
+    simple.set("y", "0")
+    anchor.append(simple)
+
+    pos_h = OxmlElement("wp:positionH")
+    pos_h.set("relativeFrom", "column")
+    align = OxmlElement("wp:align")
+    align.text = "center"
+    pos_h.append(align)
+    anchor.append(pos_h)
+
+    pos_v = OxmlElement("wp:positionV")
+    pos_v.set("relativeFrom", "paragraph")
+    off = OxmlElement("wp:posOffset")
+    off.text = "0"
+    pos_v.append(off)
+    anchor.append(pos_v)
+
+    ext = OxmlElement("wp:extent")
+    ext.set("cx", cx)
+    ext.set("cy", cy)
+    anchor.append(ext)
+
+    effect = OxmlElement("wp:effectExtent")
+    for side in ("l", "t", "r", "b"):
+        effect.set(side, "0")
+    anchor.append(effect)
+    anchor.append(OxmlElement("wp:wrapNone"))
+    anchor.append(doc_pr)
+    c_nv = inline.find(qn("wp:cNvGraphicFramePr"))
+    if c_nv is not None:
+        anchor.append(c_nv)
+    anchor.append(graphic)
+    drawing.remove(inline)
+    drawing.append(anchor)
+    return int(cy) / 914400 * 72
+
+
+def _tight_paragraph(doc, before=0, after=0):
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(before)
+    p.paragraph_format.space_after = Pt(after)
+    p.paragraph_format.line_spacing = 1.0
+    return p
+
+
+def add_compact_role(doc, item, before=2):
+    head = _tight_paragraph(doc, before=before, after=0)
+    title = head.add_run(f"{item['title']}, {format_resume_dates(item['dates'])}")
+    set_font(title, FF_DISPLAY, 11, INK)
+    meta = _tight_paragraph(doc, before=0, after=1)
+    org = meta.add_run(f"{item['org']}, {item['city']}")
+    set_font(org, FF_MONO, 8, INK_2)
+    bullets = item["resumeBullets"] if "resumeBullets" in item else item.get("bullets", [])
+    for bullet in bullets:
+        add_bullet(doc, plain_bullet(bullet), compact=True)
+
+
+def add_compact_gemmacon(doc, item):
+    """One company line, then each promotion title with its own dates."""
+    head = _tight_paragraph(doc, before=2, after=0)
+    org = head.add_run(item["org"])
+    set_font(org, FF_DISPLAY, 11, INK)
+    city = head.add_run(f", {item['city']}")
+    set_font(city, FF_MONO, 8, INK_3)
+    # Newest title first, matching the rest of the page.
+    for promo in reversed(item.get("promotions") or []):
+        line = _tight_paragraph(doc, before=0, after=0)
+        run = line.add_run(f"{promo['title']}, {format_resume_dates(promo['dates'])}")
+        set_font(run, FF_DISPLAY, 10.5, INK)
+    bullets = item["resumeBullets"] if "resumeBullets" in item else item.get("bullets", [])
+    for bullet in bullets:
+        add_bullet(doc, plain_bullet(bullet), compact=True)
 
 
 def add_bullet(doc, text, compact=False):
     p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(1 if compact else 2)
-    p.paragraph_format.space_after = Pt(1 if compact else 2)
-    p.paragraph_format.left_indent = Inches(0.18 if compact else 0.20)
-    p.paragraph_format.first_line_indent = Inches(-0.18 if compact else -0.20)
+    p.paragraph_format.space_before = Pt(0 if compact else 2)
+    p.paragraph_format.space_after = Pt(0 if compact else 2)
+    p.paragraph_format.left_indent = Inches(0.15 if compact else 0.20)
+    p.paragraph_format.first_line_indent = Inches(-0.15 if compact else -0.20)
     p.paragraph_format.line_spacing = 1.0
-    dash = p.add_run("— ")
+    mark = "• " if compact else "— "
+    dash = p.add_run(mark)
     set_font(dash, FF_BODY, 9 if compact else 10, ACCENT)
     append_text_with_links(p, text, FF_BODY, 9 if compact else 10, INK_2)
     return p
@@ -507,8 +635,8 @@ def add_compact_extras_strip(doc, extras):
     pPr.append(pBdr)
     for i, bit in enumerate(extras):
         if i > 0:
-            sep = strip.add_run("   ·   ")
-            set_font(sep, FF_MONO, 7.5, INK_4)
+            sep = strip.add_run(" · ")
+            set_font(sep, FF_BODY, 8, INK_4)
         text, url = bit if isinstance(bit, tuple) else (bit, None)
         if url:
             add_hyperlink(strip, text, url, FF_BODY, 8, INK_2)
@@ -544,27 +672,42 @@ def build_document(timeline, meta, compact=False):
 
     name_p = doc.add_paragraph()
     name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    name_p.paragraph_format.space_before = Pt(0)
     name_p.paragraph_format.space_after = Pt(1 if compact else 2)
     name_pt = 18 if compact else 22
+    # Real name text sits in the line box. The glow image floats in front of it.
+    name_run = name_p.add_run(meta["name"])
+    set_font(name_run, FF_DISPLAY, name_pt, INK)
     glow = render_name_with_ai_glow(meta["name"], NAME_GLOW, name_pt)
     if glow:
         glow_path, glow_width = glow
-        name_p.add_run().add_picture(str(glow_path), width=Inches(glow_width))
-        # Real text stays in the file for search and applicant systems.
-        hidden = name_p.add_run(meta["name"])
-        set_font(hidden, FF_DISPLAY, name_pt, INK)
-        hidden.font.hidden = True
-    else:
-        name_run = name_p.add_run(meta["name"])
-        set_font(name_run, FF_DISPLAY, name_pt, INK)
+        height_pt = _place_picture_in_front(name_p, glow_path, glow_width)
+        name_p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+        name_p.paragraph_format.line_spacing = Pt(height_pt)
 
-    subtitle_text = meta["titleLine"].upper().replace(" · ", "   ·   ")
-    mono_line(doc, subtitle_text, INK_3, size=7.5 if compact else 8.5, space=1.3, after=4 if compact else 8)
+    subtitle_text = meta["titleLine"].upper()
+    if not compact:
+        subtitle_text = subtitle_text.replace(" · ", "   ·   ")
+    mono_line(
+        doc,
+        subtitle_text,
+        INK_3,
+        size=7.5 if compact else 8.5,
+        space=0 if compact else 1.3,
+        after=2 if compact else 8,
+    )
 
     # Contact on two lines: personal info, then profiles (URLs are hyperlinks).
+    # Compact keeps the separator tight so it does not extract as its own line.
     info_bits, profile_bits = contact_lines(meta)
-    add_centered_bits(doc, info_bits, size=7.5 if compact else 8, space=1.0, after=1 if compact else 2)
-    contact_p = add_centered_bits(doc, profile_bits, size=7.5 if compact else 8, space=1.0, after=2)
+    sep = " · " if compact else "   ·   "
+    space = 0 if compact else 1.0
+    add_centered_bits(
+        doc, info_bits, size=7.5 if compact else 8, space=space, after=0 if compact else 2, sep_text=sep
+    )
+    contact_p = add_centered_bits(
+        doc, profile_bits, size=7.5 if compact else 8, space=space, after=1 if compact else 2, sep_text=sep
+    )
     add_bottom_border(contact_p, RULE)
 
     # --- 01 PROFESSIONAL SUMMARY ---
@@ -583,12 +726,8 @@ def build_document(timeline, meta, compact=False):
         strip = doc.add_paragraph()
         strip.paragraph_format.space_after = Pt(2)
         strip.paragraph_format.line_spacing = 1.0
-        for i, comp in enumerate(comps):
-            if i > 0:
-                sep = strip.add_run("  ·  ")
-                set_font(sep, FF_MONO, 8, INK_4)
-            body = strip.add_run(comp)
-            set_font(body, FF_BODY, 9, INK_2)
+        body = strip.add_run(", ".join(comps))
+        set_font(body, FF_BODY, 9, INK_2)
     else:
         comps = meta.get("competencies", [])
         rows = (len(comps) + 1) // 2
@@ -607,8 +746,23 @@ def build_document(timeline, meta, compact=False):
 
     # --- 03 PROFESSIONAL EXPERIENCE & EDUCATION ---
     # Newest first in the document; TIMELINE stays chronological for the site map.
-    section_label(doc, "03", "Professional Experience & Education", compact=compact)
+    section_label(
+        doc,
+        "03",
+        "Experience" if compact else "Professional Experience & Education",
+        compact=compact,
+    )
+    edu_headed = False
     for item in reversed(timeline):
+        if compact and item.get("type") == "education" and not edu_headed:
+            section_label(doc, "", "Education", compact=True)
+            edu_headed = True
+        if compact:
+            if str(item.get("org", "")).startswith("GEMMACON") and item.get("promotions"):
+                add_compact_gemmacon(doc, item)
+            else:
+                add_compact_role(doc, item, before=1 if item.get("type") == "education" else 2)
+            continue
         head = doc.add_paragraph()
         head.paragraph_format.space_before = Pt(3 if compact else 8)
         head.paragraph_format.space_after = Pt(0 if compact else 1)
@@ -647,7 +801,12 @@ def build_document(timeline, meta, compact=False):
             add_bullet(doc, plain_bullet(bullet), compact=compact)
 
     # --- 04 TECHNICAL SKILLS & TOOLS ---
-    section_label(doc, "04", "Technical Skills & Tools", compact=compact)
+    section_label(
+        doc,
+        "04",
+        "Technical Skills" if compact else "Technical Skills & Tools",
+        compact=compact,
+    )
     skills = meta.get("resumeSkills") if compact else None
     skills = skills or meta.get("skills", {})
     for category, desc in skills.items():
@@ -656,9 +815,8 @@ def build_document(timeline, meta, compact=False):
             p.paragraph_format.space_before = Pt(1)
             p.paragraph_format.space_after = Pt(1)
             p.paragraph_format.line_spacing = 1.0
-            head_run = p.add_run(category.upper() + "  ")
+            head_run = p.add_run(category.upper() + " ")
             set_font(head_run, FF_MONO, 7.5, INK)
-            set_character_spacing(head_run, 1.0)
             body_run = p.add_run(desc)
             set_font(body_run, FF_BODY, 8.5, INK_2)
         else:
@@ -680,10 +838,10 @@ def build_document(timeline, meta, compact=False):
         for c in meta.get("certifications", []):
             extras.append((f"MIT xPRO {c['year']}", cert_url(c)))
         for h in meta.get("highlights", []):
-            extras.append(f"MBRDNA guest speaker {h['year']}")
+            extras.append(f"Mercedes-Benz R&D North America guest speaker {h['year']}")
         langs = [lang["name"] for lang in meta.get("languages", [])]
         if langs:
-            extras.append(" · ".join(langs))
+            extras.append(", ".join(langs))
         add_compact_extras_strip(doc, extras)
     else:
         # --- 05 HIGHLIGHTS ---
@@ -816,6 +974,11 @@ def build_document(timeline, meta, compact=False):
         qr_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         qr_p.paragraph_format.space_before = Pt(2)
         add_picture_hyperlink(qr_p, QR_IMAGE, Inches(1.2), COMPANION_URL)
+
+    core = doc.core_properties
+    core.title = "Efrain Plascencia - Resume"
+    core.author = "Efrain Plascencia"
+    core.last_modified_by = "Efrain Plascencia"
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     doc.save(str(OUTPUT))

@@ -18,7 +18,13 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install Python test dependencies
-        run: python -m pip install python-docx pillow
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils libreoffice-writer
+          mkdir -p "$HOME/.local/share/fonts"
+          cp fonts/InterTight-Regular.ttf "$HOME/.local/share/fonts/"
+          fc-cache -f
+          python -m pip install python-docx pillow
       - name: Static page matches resume data
         run: node scripts/build-static.mjs --check
       - name: Agent profile matches llms.txt

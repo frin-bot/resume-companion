@@ -74,11 +74,16 @@ function checkLastUpdated(llms) {
   return ['Missing "*Last updated: YYYY-MM-DD" line in llms.txt'];
 }
 
+// ' — ', ' – ', and ', ' are the same separator in a role title.
+function normalizeTitle(text) {
+  return String(text).replace(/ — /g, ', ').replace(/ – /g, ', ');
+}
+
 function checkTitle(llms, title, label) {
   if (title == null || String(title).trim() === '') {
     return [`Missing title for ${label} in resume-data.js`];
   }
-  if (!llms.includes(title)) {
+  if (!normalizeTitle(llms).includes(normalizeTitle(title))) {
     return [`Missing title for ${label} in llms.txt: expected "${title}"`];
   }
   return [];
