@@ -1,12 +1,9 @@
-// Career timeline variants. The page defaults to B. ?timeline=a|b|c switches
-// the preview. There is no visible control.
+// Square-rule career timeline. Rendered into index.html by build-static.
 
 const MONTHS = {
   jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
   jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
 };
-
-export const DEFAULT_TIMELINE_VARIANT = 'b';
 
 function esc(value) {
   return String(value)
@@ -118,16 +115,13 @@ function textList(entries) {
 function hitAttrs(entry, active) {
   const kindLabel = entry.kind === 'education' ? 'Education' : 'Experience';
   const accessible = `${kindLabel}. ${entry.title}. ${entry.org}. ${entry.dates}.`;
-  const span = entry.span
-    ? ` data-start="${entry.span.start}" data-end="${entry.span.end}"`
-    : '';
-  return `class="tl-hit${active ? ' is-active' : ''} is-${entry.kind}" data-kind="${esc(kindLabel)}" data-title="${esc(entry.title)}" data-org="${esc(entry.org)}" data-dates="${esc(entry.dates)}" aria-label="${esc(accessible)}" title="${esc(accessible)}"${span}`;
+  return `class="tl-hit${active ? ' is-active' : ''} is-${entry.kind}" data-kind="${esc(kindLabel)}" data-title="${esc(entry.title)}" data-org="${esc(entry.org)}" data-dates="${esc(entry.dates)}" aria-label="${esc(accessible)}" title="${esc(accessible)}"`;
 }
 
 const CHEVRON = '<svg class="tl-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6 -6l6 6"/></svg>';
 
-function shell(variant, legend, body, entries) {
-  return `<section class="career-gantt timeline-${variant}" id="career-gantt" data-variant="${variant}" aria-labelledby="career-gantt-heading">
+function shell(legend, body, entries) {
+  return `<section class="career-gantt" id="career-gantt" aria-labelledby="career-gantt-heading">
     <div class="tl-head">
       <div class="section-label">
         <span class="lbl" id="career-gantt-heading">Timeline</span>
@@ -184,92 +178,9 @@ function renderA(model) {
           <div class="tl-axis" aria-hidden="true">${axisHtml(labels)}</div>
         </div>
       </div>`;
-  return shell('a', legend, body, model.entries);
+  return shell(legend, body, model.entries);
 }
 
-function renderB(model) {
-  const { placed } = model;
-  const last = placed.length - 1;
-  const rows = placed.map((entry, index) => {
-    const x = (entry.span.start - model.scaleStart) / model.span;
-    const w = (entry.span.end - entry.span.start) / model.span;
-    const kindLabel = entry.kind === 'education' ? 'Education' : 'Experience';
-    return `<li>
-      <button type="button" ${hitAttrs(entry, index === last)}>
-        <span class="tl-index-copy">
-          <span class="tl-kicker">${esc(kindLabel)}</span>
-          <span class="tl-index-title">${esc(entry.title)}</span>
-          <span class="tl-index-org">${esc(entry.org)}</span>
-        </span>
-        <span class="tl-index-dates">${esc(entry.dates)}</span>
-        <span class="tl-index-rule" aria-hidden="true">
-          <span class="tl-index-mark" style="left:${pct(x)};width:${pct(w)}"></span>
-        </span>
-      </button>
-    </li>`;
-  }).join('\n');
-  const body = `<div class="tl-body" id="career-gantt-chart">
-        <div class="tl-scale" aria-hidden="true">
-          <div class="tl-axis">${axisHtml(model.labels)}</div>
-        </div>
-        <ol class="tl-index">${rows}</ol>
-      </div>`;
-  return shell('b', '', body, model.entries);
-}
-
-function renderC(model) {
-  const { placed } = model;
-  const last = placed[placed.length - 1];
-  const ticks = placed.map((entry, index) => {
-    const x = (entry.span.start - model.scaleStart) / model.span;
-    return `<button type="button" ${hitAttrs(entry, index === placed.length - 1)} style="--x:${pct(x)}">
-      <span class="tl-c-tick"></span>
-    </button>`;
-  }).join('\n');
-  const kindLabel = last.kind === 'education' ? 'Education' : 'Experience';
-  const body = `<div class="tl-body tl-scrub" id="career-gantt-chart" data-scale-start="${model.scaleStart}" data-scale-end="${model.scaleEnd}">
-        <div class="tl-scrub-sticky">
-          <div class="tl-c-top">
-            <div class="tl-c-copy">
-              <p class="tl-kicker" data-tl-kind>${esc(kindLabel)}</p>
-              <p class="tl-c-title" data-tl-title>${esc(last.title)}</p>
-              <p class="tl-readout-meta" data-tl-meta>${esc(last.org)} · ${esc(last.dates)}</p>
-            </div>
-            <div class="year-ticker" aria-hidden="true">
-              <span class="year-big" data-tl-year>${Math.floor((model.scaleEnd - 1) / 12)}</span>
-              <span class="year-lbl">year</span>
-            </div>
-          </div>
-          <div class="tl-c-track">
-            <span class="tl-c-fill" data-tl-fill style="--p:100%"></span>
-            <span class="tl-c-head" data-tl-head style="--p:100%"></span>
-            ${ticks}
-          </div>
-          <div class="tl-axis" aria-hidden="true">${axisHtml(model.labels)}</div>
-        </div>
-      </div>`;
-  return shell('c', '', body, model.entries);
-}
-
-export function renderCareerTimeline(timeline, variant = DEFAULT_TIMELINE_VARIANT) {
-  const model = prepare(timeline);
-  if (variant === 'a') return renderA(model);
-  if (variant === 'c') return renderC(model);
-  return renderB(model);
-}
-
-if (typeof document !== 'undefined') {
-  const boot = () => {
-    const root = document.getElementById('career-gantt');
-    if (!root || typeof TIMELINE === 'undefined') return;
-    const requested = new URLSearchParams(location.search).get('timeline');
-    const variant = requested === 'a' || requested === 'b' || requested === 'c'
-      ? requested
-      : DEFAULT_TIMELINE_VARIANT;
-    if (root.dataset.variant !== variant) {
-      root.outerHTML = renderCareerTimeline(TIMELINE, variant);
-    }
-  };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-  else boot();
+export function renderCareerTimeline(timeline) {
+  return renderA(prepare(timeline));
 }
