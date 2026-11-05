@@ -131,11 +131,11 @@ class CompactResumeTests(unittest.TestCase):
         self.assertIn("https://" + self.meta["linkedin"], urls)
         self.assertIn("https://" + self.meta["x"], urls)
         self.assertIn("https://" + self.meta["github"], urls)
-        self.assertIn(mr.COMPANION_URL, urls)
         self.assertIn(mr.CERT_URL, urls)
         self.assertTrue(mr.CERT_URL.endswith("#acc.3MJw8mIU"))
-        # QR image + caption both point at the companion site.
-        self.assertGreaterEqual(urls.count(mr.COMPANION_URL), 2)
+        # QR image and caption both open https://www.frin.bot/.
+        self.assertGreaterEqual(urls.count("https://www.frin.bot/"), 2)
+        self.assertNotIn(mr.COMPANION_URL, urls)
         from docx import Document
         from docx.oxml.ns import qn
         doc = Document(str(self.out))

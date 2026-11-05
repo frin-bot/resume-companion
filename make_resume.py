@@ -638,12 +638,13 @@ def add_compact_page_footer(section):
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     p.paragraph_format.space_before = Pt(0)
     p.paragraph_format.space_after = Pt(0)
-    add_picture_hyperlink(p, QR_IMAGE, Inches(0.52), COMPANION_URL)
+    frin_url = "https://www.frin.bot/"
+    add_picture_hyperlink(p, QR_IMAGE, Inches(0.52), frin_url)
     cap = footer.add_paragraph()
     cap.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     cap.paragraph_format.space_before = Pt(1)
     cap.paragraph_format.space_after = Pt(0)
-    add_hyperlink(cap, "www.frin.bot", COMPANION_URL, FF_MONO, 6.5, INK_3, spacing=0.8)
+    add_hyperlink(cap, "www.frin.bot", frin_url, FF_MONO, 6.5, INK_3, spacing=0.8)
 
 
 def add_compact_extras_strip(doc, extras):
