@@ -583,19 +583,17 @@ def add_compact_role(doc, item, before=2):
 
 
 def add_compact_gemmacon(doc, item):
-    """One company line, then each promotion title with its own dates."""
-    head = _tight_paragraph(doc, before=2, after=0)
-    org = head.add_run(item["org"])
-    set_font(org, FF_DISPLAY, 11, INK)
-    city = head.add_run(f", {item['city']}")
-    set_font(city, FF_MONO, 8, INK_3)
-    # Newest title first, matching the rest of the page.
-    for promo in reversed(item.get("promotions") or []):
-        line = _tight_paragraph(doc, before=0, after=0)
-        run = line.add_run(format_resume_title(promo["title"]))
-        set_font(run, FF_DISPLAY, 10.5, INK, bold=True)
+    """Three title lines, then one company line in the same style as other roles."""
+    promotions = list(reversed(item.get("promotions") or []))
+    for index, promo in enumerate(promotions):
+        line = _tight_paragraph(doc, before=2 if index == 0 else 0, after=0)
+        title = line.add_run(format_resume_title(promo["title"]))
+        set_font(title, FF_DISPLAY, 11, INK, bold=True)
         dates = line.add_run(f", {format_resume_dates(promo['dates'])}")
-        set_font(dates, FF_DISPLAY, 10.5, INK)
+        set_font(dates, FF_DISPLAY, 11, INK)
+    meta = _tight_paragraph(doc, before=0, after=1)
+    org = meta.add_run(format_org_line(item["org"], item["city"]))
+    set_font(org, FF_MONO, 8, INK_2)
     bullets = item["resumeBullets"] if "resumeBullets" in item else item.get("bullets", [])
     for bullet in bullets:
         add_bullet(doc, plain_bullet(bullet), compact=True)

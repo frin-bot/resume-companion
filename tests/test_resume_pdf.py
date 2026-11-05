@@ -81,6 +81,11 @@ class ResumePdfTests(unittest.TestCase):
         self.assertNotIn("Long Beach, Long Beach", flat)
         self.assertNotIn("Senior Test Engineer —", self.text)
         self.assertNotIn("Quality Engineer —", self.text)
+        director = flat.find("Director of AI Deployment & Solutions, Apr 2025 - Present")
+        head = flat.find("Head of Business Development and Engineering, Apr 2024 - Mar 2025")
+        ota = flat.find("OTA Test Manager, Apr 2023 - Mar 2024")
+        company = flat.find("GEMMACON North America, Long Beach, CA (Remote from DFW)")
+        self.assertTrue(0 <= director < head < ota < company)
         for label, body in self.meta["resumeSkills"].items():
             rendered = label.upper()
             self.assertLess(flat.find(rendered), flat.find(body), rendered)
