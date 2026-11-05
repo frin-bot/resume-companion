@@ -176,6 +176,180 @@ function contact(meta) {
     </div>`;
 }
 
+const MONTHS = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+};
+
+// Month tokens mark the start of that month, so "Mar 2017 — Mar 2020" is
+// three years and two roles that share a month meet. A year with no month
+// covers that whole calendar year. "Present" runs through December of the
+// entry's endYear (already stored on the timeline item).
+function parseEdge(token, edge, endYear) {
+  const text = String(token).trim();
+  if (/^present$/i.test(text)) {
+    if (!Number.isInteger(endYear)) return null;
+    return (endYear + 1) * 12;
+  }
+  const monthYear = text.match(/^([A-Za-z]{3,})\s+(\d{4})$/);
+  if (monthYear) {
+    const month = MONTHS[monthYear[1].slice(0, 3).toLowerCase()];
+    if (month == null) return null;
+    return Number(monthYear[2]) * 12 + month;
+  }
+  const yearOnly = text.match(/^(\d{4})$/);
+  if (yearOnly) {
+    const year = Number(yearOnly[1]);
+    return edge === 'end' ? (year + 1) * 12 : year * 12;
+  }
+  return null;
+}
+
+function parseSpan(dates, endYear) {
+  const parts = String(dates).split(/\s+[—–-]\s+/);
+  if (parts.length !== 2) return null;
+  const start = parseEdge(parts[0], 'start', endYear);
+  const end = parseEdge(parts[1], 'end', endYear);
+  if (start == null || end == null || end <= start) return null;
+  return { start, end };
+}
+
+function ganttEntries(timeline) {
+  const entries = [];
+  for (const item of timeline) {
+    const kind = item.type === 'education' ? 'education' : 'experience';
+    const roles = item.promotions && item.promotions.length
+      ? item.promotions.map(role => ({ title: role.title, dates: role.dates }))
+      : [{ title: item.title, dates: item.dates }];
+    for (const role of roles) {
+      entries.push({
+        kind,
+        title: role.title,
+        org: item.org,
+        dates: role.dates,
+        span: parseSpan(role.dates, item.endYear),
+      });
+    }
+  }
+  return entries;
+}
+
+function pct(fraction) {
+  return `${(fraction * 100).toFixed(4)}%`;
+}
+
+const GANTT_BRIEFCASE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z"/><path d="M8 7v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2"/><path d="M12 12l0 .01"/><path d="M3 13a20 20 0 0 0 18 0"/></svg>';
+const GANTT_CAP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 9l-10 -4l-10 4l10 4l10 -4v6"/><path d="M6 10.6v5.4a6 3 0 0 0 12 0v-5.4"/></svg>';
+
+function careerGantt(timeline) {
+  const entries = ganttEntries(timeline);
+  const placed = entries.filter(entry => entry.span);
+  const skipped = entries.filter(entry => !entry.span);
+  if (skipped.length) {
+    console.warn(
+      'Career timeline skipped entries with unparsed dates:',
+      skipped.map(entry => `${entry.title} (${entry.dates})`).join('; ')
+    );
+  }
+  if (!placed.length) {
+    throw new Error('Career timeline has no entries with a usable date span');
+  }
+
+  const scaleStart = Math.min(...placed.map(entry => entry.span.start));
+  const scaleEnd = Math.max(...placed.map(entry => entry.span.end));
+  const span = scaleEnd - scaleStart;
+  const startYear = Math.floor(scaleStart / 12);
+  const labels = [];
+  for (let year = startYear; year * 12 < scaleEnd; year += 4) {
+    const fraction = (year * 12 - scaleStart) / span;
+    if (fraction >= 0.94) continue;
+    labels.push({ text: String(year), fraction, edge: labels.length === 0 ? 'start' : '' });
+  }
+  labels.push({ text: 'Today', fraction: 1, edge: 'today' });
+
+  const lanes = placed.length;
+  const bars = placed.map((entry, index) => {
+    const x = (entry.span.start - scaleStart) / span;
+    const w = (entry.span.end - entry.span.start) / span;
+    const kindLabel = entry.kind === 'education' ? 'Education' : 'Experience';
+    const icon = entry.kind === 'education' ? GANTT_CAP : GANTT_BRIEFCASE;
+    const accessible = `${kindLabel}. ${entry.title}. ${entry.org}. ${entry.dates}.`;
+    // Narrow bars can't hold a title. Park the name in the empty space to the left.
+    const labeled = w < 0.17 ? ' is-labeled' : '';
+    return `          <li class="gantt-item${labeled}" style="--x:${pct(x)};--w:${pct(w)};--lane:${index}">
+            <span class="gantt-label">${esc(entry.title)}</span>
+            <button type="button" class="gantt-bar is-${entry.kind}${index === placed.length - 1 ? ' is-active' : ''}" data-title="${esc(entry.title)}" data-org="${esc(entry.org)}" data-dates="${esc(entry.dates)}" aria-label="${esc(accessible)}" title="${esc(accessible)}">
+              <span class="gantt-pill">${icon}<span class="gantt-bar-name">${esc(entry.title)}</span></span>
+            </button>
+          </li>`;
+  }).join('\n');
+
+  const markClass = (label) => {
+    const names = [];
+    if (label.edge === 'start') names.push('is-start');
+    if (label.edge === 'today') names.push('is-today');
+    if (!label.edge && 1 - label.fraction < 0.2) names.push('is-optional');
+    return names.length ? ` class="${names.join(' ')}"` : '';
+  };
+  const grid = labels.map(label =>
+    `            <span${markClass(label)} style="left:${pct(label.fraction)}"></span>`
+  ).join('\n');
+  const axis = labels.map(label =>
+    `            <span${markClass(label)} style="left:${pct(label.fraction)}">${esc(label.text)}</span>`
+  ).join('\n');
+
+  const textItems = entries.map(entry => {
+    const kindLabel = entry.kind === 'education' ? 'Education' : 'Experience';
+    return `        <li>${esc(kindLabel)}. ${esc(entry.title)}. ${esc(entry.org)}. ${esc(entry.dates)}.</li>`;
+  }).join('\n');
+
+  return `  <section class="career-gantt" id="career-gantt" aria-labelledby="career-gantt-heading">
+    <div class="gantt-head">
+      <div class="section-label">
+        <span class="lbl" id="career-gantt-heading">Timeline</span>
+      </div>
+      <ul class="gantt-legend">
+        <li><span class="gantt-swatch is-experience">${GANTT_BRIEFCASE}</span> Experience</li>
+        <li><span class="gantt-swatch is-education">${GANTT_CAP}</span> Education</li>
+      </ul>
+    </div>
+    <div class="gantt-readout" id="gantt-readout">
+      <p class="gantt-readout-title">${esc(placed[placed.length - 1].title)}</p>
+      <p class="gantt-readout-meta">${esc(placed[placed.length - 1].org)} · ${esc(placed[placed.length - 1].dates)}</p>
+    </div>
+    <details class="gantt-details" open>
+      <div class="gantt-body" id="career-gantt-chart">
+        <div class="gantt-scroll" role="group" aria-label="Career timeline chart">
+          <div class="gantt-canvas" style="--lanes:${lanes}">
+            <div class="gantt-plot">
+              <div class="gantt-grid" aria-hidden="true">
+${grid}
+              </div>
+              <ol class="gantt-bars">
+${bars}
+              </ol>
+            </div>
+            <div class="gantt-axis" aria-hidden="true">
+${axis}
+            </div>
+          </div>
+        </div>
+      </div>
+      <summary>
+        <span class="gantt-toggle-open">Collapse <span class="visually-hidden">timeline</span></span>
+        <span class="gantt-toggle-closed">Expand <span class="visually-hidden">timeline</span></span>
+        <svg class="gantt-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6 -6l6 6"/></svg>
+      </summary>
+    </details>
+    <div class="visually-hidden" id="career-gantt-text">
+      <p>Career timeline as text.</p>
+      <ol>
+${textItems}
+      </ol>
+    </div>
+  </section>`;
+}
+
 function experience(timeline) {
   const roles = timeline.map(item => {
     const kind = item.type === 'education' ? 'Education' : 'Experience';
@@ -249,6 +423,7 @@ function renderHtml(html, meta, timeline) {
     languages: languages(meta),
     contact: contact(meta),
     experience: experience(timeline),
+    'career-gantt': careerGantt(timeline),
   };
   let next = html;
   for (const [name, content] of Object.entries(regions)) {

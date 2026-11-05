@@ -937,6 +937,32 @@ function updateScene() {
   state.activeIdx = activeIdx;
 }
 
+function initCareerGantt() {
+  const root = document.getElementById('career-gantt');
+  const titleEl = root?.querySelector('.gantt-readout-title');
+  const metaEl = root?.querySelector('.gantt-readout-meta');
+  if (!root || !titleEl || !metaEl) return;
+  const bars = [...root.querySelectorAll('.gantt-bar')];
+
+  function show(btn) {
+    titleEl.textContent = btn.dataset.title || '';
+    const org = btn.dataset.org || '';
+    const dates = btn.dataset.dates || '';
+    metaEl.textContent = org && dates ? `${org} · ${dates}` : org || dates;
+    bars.forEach(el => el.classList.toggle('is-active', el === btn));
+  }
+
+  bars.forEach(btn => {
+    btn.removeAttribute('title');
+    btn.addEventListener('pointerenter', (event) => {
+      if (event.pointerType === 'touch') return;
+      show(btn);
+    });
+    btn.addEventListener('focus', () => show(btn));
+    btn.addEventListener('click', () => show(btn));
+  });
+}
+
 // ===== BOOT =====
 let rafPending = false;
 function onScroll() {
@@ -1335,6 +1361,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initThemeToggle();
   initBackToTop();
   initCardDrag();
+  initCareerGantt();
   initCardScrollLock();
   initLogoEasterEgg();
   const [statesData, countiesData] = await Promise.all([

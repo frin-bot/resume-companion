@@ -105,6 +105,32 @@ class StaticPageTests(unittest.TestCase):
                         html,
                     )
 
+    def test_career_gantt_between_map_and_skills(self):
+        html = self.html
+        experience = html.find('id="experience"')
+        gantt_at = html.find('id="career-gantt"')
+        skills = html.find("Technical Skills")
+        self.assertLess(experience, gantt_at)
+        self.assertLess(gantt_at, skills)
+        region = re.search(
+            r"<!--static:career-gantt-->(.*)<!--/static:career-gantt-->",
+            html,
+            re.S,
+        ).group(1)
+        self.assertIn("California State University, Long Beach", region)
+        self.assertIn("2008 — 2012", region)
+        self.assertNotIn("MIT xPRO", region)
+        for stop in self.payload["timeline"]:
+            promotions = stop.get("promotions") or []
+            self.assertIn(_esc(stop["org"]), region)
+            if promotions:
+                for promo in promotions:
+                    self.assertIn(_esc(promo["title"]), region)
+                    self.assertIn(_esc(promo["dates"]), region)
+            else:
+                self.assertIn(_esc(stop["title"]), region)
+                self.assertIn(_esc(stop["dates"]), region)
+
     def test_manifest_description_matches_headline(self):
         self.assertEqual(self.manifest["description"], self.payload["meta"]["titleLine"])
         self.assertNotIn("Technical Lead", json.dumps(self.manifest))
