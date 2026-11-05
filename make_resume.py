@@ -418,17 +418,22 @@ def add_bottom_border(paragraph, color=RULE, size=4):
     pPr.append(pBdr)
 
 
+# Compact rhythm. Section gaps carry most of the air; role gaps are smaller.
+COMPACT_SECTION_BEFORE = 7  # pt above each section heading
+COMPACT_ROLE_BEFORE = 5  # pt above a role that follows another role
+COMPACT_AFTER_HEADING = 2  # pt between a heading and the first line under it
+
+
 def section_label(doc, number, label, compact=False):
     p = doc.add_paragraph()
     # Compact space-before stays small so the one-page PDF still clears the footer.
-    p.paragraph_format.space_before = Pt(3 if compact else 16)
+    p.paragraph_format.space_before = Pt(COMPACT_SECTION_BEFORE if compact else 16)
     p.paragraph_format.space_after = Pt(1 if compact else 6)
     if compact:
-        # Normal spelling in the text layer ("Experience"). Accent, bold, and
+        # Normal spelling in the text layer ("Experience"). Accent color and
         # tracking make the heading read as a label, not a job title.
-        # Small caps are not used: LibreOffice writes them as uppercase.
         lbl = p.add_run(label)
-        set_font(lbl, FF_MONO, 8.5, ACCENT, bold=True)
+        set_font(lbl, FF_MONO, 8.5, ACCENT, bold=False)
         set_character_spacing(lbl, 1.2)
     else:
         num = p.add_run(f"{number}   ")
@@ -571,9 +576,9 @@ def _tight_paragraph(doc, before=0, after=0):
 def add_compact_role(doc, item, before=2):
     head = _tight_paragraph(doc, before=before, after=0)
     title = head.add_run(format_resume_title(item["title"]))
-    set_font(title, FF_DISPLAY, 11, INK, bold=True)
+    set_font(title, FF_DISPLAY, 11.5, INK, bold=False)
     dates = head.add_run(f", {format_resume_dates(item['dates'])}")
-    set_font(dates, FF_DISPLAY, 11, INK)
+    set_font(dates, FF_DISPLAY, 11.5, INK_3, bold=False)
     meta = _tight_paragraph(doc, before=0, after=1)
     org = meta.add_run(format_org_line(item["org"], item["city"]))
     set_font(org, FF_MONO, 8, INK_2)
@@ -586,11 +591,11 @@ def add_compact_gemmacon(doc, item):
     """Three title lines, then one company line in the same style as other roles."""
     promotions = list(reversed(item.get("promotions") or []))
     for index, promo in enumerate(promotions):
-        line = _tight_paragraph(doc, before=2 if index == 0 else 0, after=0)
+        line = _tight_paragraph(doc, before=COMPACT_AFTER_HEADING if index == 0 else 0, after=0)
         title = line.add_run(format_resume_title(promo["title"]))
-        set_font(title, FF_DISPLAY, 11, INK, bold=True)
+        set_font(title, FF_DISPLAY, 11.5, INK, bold=False)
         dates = line.add_run(f", {format_resume_dates(promo['dates'])}")
-        set_font(dates, FF_DISPLAY, 11, INK)
+        set_font(dates, FF_DISPLAY, 11.5, INK_3, bold=False)
     meta = _tight_paragraph(doc, before=0, after=1)
     org = meta.add_run(format_org_line(item["org"], item["city"]))
     set_font(org, FF_MONO, 8, INK_2)
@@ -783,7 +788,11 @@ def build_document(timeline, meta, compact=False):
             if str(item.get("org", "")).startswith("GEMMACON") and item.get("promotions"):
                 add_compact_gemmacon(doc, item)
             else:
-                add_compact_role(doc, item, before=1 if item.get("type") == "education" else 2)
+                add_compact_role(
+                    doc,
+                    item,
+                    before=COMPACT_AFTER_HEADING if item.get("type") == "education" else COMPACT_ROLE_BEFORE,
+                )
             continue
         head = doc.add_paragraph()
         head.paragraph_format.space_before = Pt(3 if compact else 8)
@@ -838,7 +847,7 @@ def build_document(timeline, meta, compact=False):
             p.paragraph_format.space_after = Pt(1)
             p.paragraph_format.line_spacing = 1.0
             head_run = p.add_run(category.upper() + " ")
-            set_font(head_run, FF_MONO, 7.5, INK)
+            set_font(head_run, FF_MONO, 7.5, INK, bold=False)
             body_run = p.add_run(desc)
             set_font(body_run, FF_BODY, 8.5, INK_2)
         else:
