@@ -441,6 +441,11 @@ COMPACT_SECTION_BEFORE = 7  # pt above each section heading
 COMPACT_HEADING_AFTER = 1  # pt of space_after on a compact section heading
 COMPACT_ROLE_BEFORE = 5  # pt above a role that follows another role
 COMPACT_AFTER_HEADING = 2  # pt between a heading and the first line under it
+# Preview only. Moves the GEMMACON G from the first title down to the
+# midpoint of its three titles plus the company line. Measured on the
+# one-page PDF at 216 dpi: the block runs 273.00 to 321.33 pt and the
+# 21.67 pt G is centered at 281.33 pt, so it needs 15.833 pt more offset.
+GEMMACON_BLOCK_CENTER_NUDGE_PT = 47.5 / 3
 
 
 def section_label(doc, number, label, compact=False):
@@ -625,7 +630,7 @@ def logo_anchor_space(space_before_pt, previous_space_after_pt=0):
     return max(0, space_before_pt - previous_space_after_pt)
 
 
-def _anchor_logo_in_column(paragraph, image_path, width_pt, height_pt, space_before_pt=0):
+def _anchor_logo_in_column(paragraph, image_path, width_pt, height_pt, space_before_pt=0, extra_y_pt=0):
     """Float the mark, centered on the two header lines. Not a table cell.
 
     A table cell clips the picture: LibreOffice keeps the default table
@@ -678,7 +683,7 @@ def _anchor_logo_in_column(paragraph, image_path, width_pt, height_pt, space_bef
     pos_v = OxmlElement("wp:positionV")
     pos_v.set("relativeFrom", "paragraph")
     off_v = OxmlElement("wp:posOffset")
-    offset_y_pt = space_before_pt + (LOGO_COLUMN_PT - height_pt) / 2
+    offset_y_pt = space_before_pt + extra_y_pt + (LOGO_COLUMN_PT - height_pt) / 2
     off_v.text = str(int(round(offset_y_pt * 12700)))
     pos_v.append(off_v)
     anchor.append(pos_v)
@@ -803,11 +808,12 @@ def add_compact_role(doc, item, before=2, logo=None, follows_heading=False):
         add_bullet(doc, plain_bullet(bullet), compact=True)
 
 
-def add_compact_gemmacon(doc, item, logo=None):
+def add_compact_gemmacon(doc, item, logo=None, center_on_block=False):
     """Three title lines, then one company line in the same style as other roles.
 
     The mark uses the same 21.5 pt box as every other entry. It is not
-    stretched down the three titles.
+    stretched down the three titles. center_on_block is a preview: it
+    slides that same mark to the midpoint of the whole header.
     """
     promotions = list(reversed(item.get("promotions") or []))
     for index, promo in enumerate(promotions):
@@ -824,6 +830,7 @@ def add_compact_gemmacon(doc, item, logo=None):
                 space_before_pt=logo_anchor_space(
                     COMPACT_AFTER_HEADING, COMPACT_HEADING_AFTER
                 ),
+                extra_y_pt=GEMMACON_BLOCK_CENTER_NUDGE_PT if center_on_block else 0,
             )
     meta = _tight_paragraph(doc, before=0, after=1)
     _indent_logo_column(meta)
@@ -903,7 +910,7 @@ def add_compact_extras_strip(doc, extras):
             set_font(run, FF_BODY, 8, INK_2)
 
 
-def build_document(timeline, meta, compact=False, logos=None):
+def build_document(timeline, meta, compact=False, logos=None, center_gemmacon_g=False):
     doc = Document()
     logo_paths = {}
     skipped_logos = []
@@ -1032,7 +1039,7 @@ def build_document(timeline, meta, compact=False, logos=None):
         if compact:
             logo = logo_paths.get(id(item))
             if str(item.get("org", "")).startswith("GEMMACON") and item.get("promotions"):
-                add_compact_gemmacon(doc, item, logo=logo)
+                add_compact_gemmacon(doc, item, logo=logo, center_on_block=center_gemmacon_g)
             else:
                 add_compact_role(
                     doc,
@@ -1297,9 +1304,13 @@ def main(argv=None):
     global OUTPUT
     args = list(sys.argv[1:] if argv is None else argv)
     output, compact, logos = resolve_resume_build(args)
+    # Preview only. The site resume stays on the first-title alignment.
+    center_gemmacon_g = "--center-gemmacon-g" in args
+    if center_gemmacon_g:
+        output = ROOT / "variants" / "gemmacon-g-centered.docx"
     OUTPUT = output
     timeline, meta = load_data()
-    skipped = build_document(timeline, meta, compact=compact)
+    skipped = build_document(timeline, meta, compact=compact, center_gemmacon_g=center_gemmacon_g)
     if compact:
         present = [item.get("org") or "" for item in timeline if _logo_source(item)]
         print("Logos: " + "; ".join(present))
