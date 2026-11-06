@@ -20,7 +20,7 @@ jobs:
       - name: Install Python test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends poppler-utils libreoffice-writer
+          sudo apt-get install -y --no-install-recommends poppler-utils libreoffice-writer librsvg2-bin
           mkdir -p "$HOME/.local/share/fonts"
           cp fonts/InterTight-Regular.ttf "$HOME/.local/share/fonts/"
           fc-cache -f
