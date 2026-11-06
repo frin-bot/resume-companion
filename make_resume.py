@@ -441,10 +441,10 @@ COMPACT_SECTION_BEFORE = 7  # pt above each section heading
 COMPACT_HEADING_AFTER = 1  # pt of space_after on a compact section heading
 COMPACT_ROLE_BEFORE = 5  # pt above a role that follows another role
 COMPACT_AFTER_HEADING = 2  # pt between a heading and the first line under it
-# Preview only. Moves the GEMMACON G from the first title down to the
-# midpoint of its three titles plus the company line. Measured on the
-# one-page PDF at 216 dpi: the block runs 273.00 to 321.33 pt and the
-# 21.67 pt G is centered at 281.33 pt, so it needs 15.833 pt more offset.
+# The G stays 21.5 pt, like the other marks, and its center sits on the
+# midpoint of GEMMACON's three titles plus the company line. Measured on
+# the one-page PDF at 216 dpi: that block runs 273.00 to 321.33 pt, and a
+# mark anchored to the first title is centered at 281.33 pt.
 GEMMACON_BLOCK_CENTER_NUDGE_PT = 47.5 / 3
 
 
@@ -808,12 +808,11 @@ def add_compact_role(doc, item, before=2, logo=None, follows_heading=False):
         add_bullet(doc, plain_bullet(bullet), compact=True)
 
 
-def add_compact_gemmacon(doc, item, logo=None, center_on_block=False):
+def add_compact_gemmacon(doc, item, logo=None):
     """Three title lines, then one company line in the same style as other roles.
 
     The mark uses the same 21.5 pt box as every other entry. It is not
-    stretched down the three titles. center_on_block is a preview: it
-    slides that same mark to the midpoint of the whole header.
+    stretched down the three titles. It is centered on the whole header.
     """
     promotions = list(reversed(item.get("promotions") or []))
     for index, promo in enumerate(promotions):
@@ -830,7 +829,7 @@ def add_compact_gemmacon(doc, item, logo=None, center_on_block=False):
                 space_before_pt=logo_anchor_space(
                     COMPACT_AFTER_HEADING, COMPACT_HEADING_AFTER
                 ),
-                extra_y_pt=GEMMACON_BLOCK_CENTER_NUDGE_PT if center_on_block else 0,
+                extra_y_pt=GEMMACON_BLOCK_CENTER_NUDGE_PT,
             )
     meta = _tight_paragraph(doc, before=0, after=1)
     _indent_logo_column(meta)
@@ -910,7 +909,7 @@ def add_compact_extras_strip(doc, extras):
             set_font(run, FF_BODY, 8, INK_2)
 
 
-def build_document(timeline, meta, compact=False, logos=None, center_gemmacon_g=False):
+def build_document(timeline, meta, compact=False, logos=None):
     doc = Document()
     logo_paths = {}
     skipped_logos = []
@@ -1039,7 +1038,7 @@ def build_document(timeline, meta, compact=False, logos=None, center_gemmacon_g=
         if compact:
             logo = logo_paths.get(id(item))
             if str(item.get("org", "")).startswith("GEMMACON") and item.get("promotions"):
-                add_compact_gemmacon(doc, item, logo=logo, center_on_block=center_gemmacon_g)
+                add_compact_gemmacon(doc, item, logo=logo)
             else:
                 add_compact_role(
                     doc,
@@ -1304,13 +1303,9 @@ def main(argv=None):
     global OUTPUT
     args = list(sys.argv[1:] if argv is None else argv)
     output, compact, logos = resolve_resume_build(args)
-    # Preview only. The site resume stays on the first-title alignment.
-    center_gemmacon_g = "--center-gemmacon-g" in args
-    if center_gemmacon_g:
-        output = ROOT / "variants" / "gemmacon-g-centered.docx"
     OUTPUT = output
     timeline, meta = load_data()
-    skipped = build_document(timeline, meta, compact=compact, center_gemmacon_g=center_gemmacon_g)
+    skipped = build_document(timeline, meta, compact=compact)
     if compact:
         present = [item.get("org") or "" for item in timeline if _logo_source(item)]
         print("Logos: " + "; ".join(present))

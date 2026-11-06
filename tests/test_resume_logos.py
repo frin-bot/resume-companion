@@ -115,7 +115,8 @@ class ResumeLogoTests(unittest.TestCase):
         expected = {
             "Director of AI Deployment & Solutions,": mr.logo_anchor_space(
                 mr.COMPACT_AFTER_HEADING, mr.COMPACT_HEADING_AFTER
-            ),
+            )
+            + mr.GEMMACON_BLOCK_CENTER_NUDGE_PT,
             "Lead Test Engineer,": mr.logo_anchor_space(mr.COMPACT_ROLE_BEFORE),
             "End-to-End Quality Engineer,": mr.logo_anchor_space(mr.COMPACT_ROLE_BEFORE),
             "Bachelor of Science,": mr.logo_anchor_space(
@@ -136,23 +137,6 @@ class ResumeLogoTests(unittest.TestCase):
             want = expected[match] + (mr.LOGO_COLUMN_PT - height_pt) / 2
             self.assertAlmostEqual(offset_pt, want, places=2, msg=text)
         self.assertEqual(seen, set(expected))
-
-    def test_gemmacon_block_center_is_opt_in(self):
-        """The preview flag slides only the G. The shipped resume does not."""
-        from docx import Document
-        from docx.oxml.ns import qn
-
-        self._build(self.out, compact=True, center_gemmacon_g=True)
-        doc = Document(str(self.out))
-        offsets = {}
-        for paragraph in doc.paragraphs:
-            text = _para_text(paragraph)
-            if text.startswith("Director of AI Deployment & Solutions,") or text.startswith("End-to-End Quality Engineer,"):
-                anchor = paragraph._p.find(".//" + qn("wp:anchor"))
-                offsets[text.split(",")[0]] = int(anchor.find(".//" + qn("wp:positionV")).find(qn("wp:posOffset")).text) / 12700
-        shipped = mr.logo_anchor_space(mr.COMPACT_AFTER_HEADING, mr.COMPACT_HEADING_AFTER)
-        self.assertGreater(offsets["Director of AI Deployment & Solutions"], shipped + 15)
-        self.assertLess(offsets["End-to-End Quality Engineer"], mr.COMPACT_ROLE_BEFORE + 1)
 
     def test_missing_logo_still_indents_and_keeps_the_name(self):
         from docx import Document
