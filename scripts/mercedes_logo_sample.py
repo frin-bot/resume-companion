@@ -13,7 +13,6 @@ import tempfile
 from pathlib import Path
 
 from docx import Document
-from docx.enum.table import WD_ALIGN_VERTICAL
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
@@ -28,6 +27,7 @@ OUT_DIR = ROOT / "variants"
 SAMPLE_DOCX = OUT_DIR / "mercedes-sample.docx"
 SAMPLE_PDF = OUT_DIR / "mercedes-sample.pdf"
 SAMPLE_PNG = OUT_DIR / "mercedes-sample.png"
+CHECK_PNG = OUT_DIR / "logos-check.png"
 PAGE_WIDTH_IN = 8.5
 # Same text width as the one-page resume (0.5in margins).
 MARGIN_X_IN = 0.5
@@ -157,41 +157,6 @@ def _raster_logo(src: Path, dest: Path, height_pt: float) -> float:
     return target_w / mr.LOGO_PX_PER_PT
 
 
-def _clear_table_borders(table):
-    tbl_pr = table._tbl.tblPr
-    borders = OxmlElement("w:tblBorders")
-    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
-        el = OxmlElement(f"w:{edge}")
-        el.set(qn("w:val"), "nil")
-        el.set(qn("w:sz"), "0")
-        el.set(qn("w:space"), "0")
-        el.set(qn("w:color"), "auto")
-        borders.append(el)
-    tbl_pr.append(borders)
-    margins = OxmlElement("w:tblCellMar")
-    for edge in ("top", "left", "bottom", "right"):
-        node = OxmlElement(f"w:{edge}")
-        node.set(qn("w:w"), "0")
-        node.set(qn("w:type"), "dxa")
-        margins.append(node)
-    tbl_pr.append(margins)
-    layout = OxmlElement("w:tblLayout")
-    layout.set(qn("w:type"), "fixed")
-    tbl_pr.append(layout)
-
-
-def _set_cell_width(cell, inches: float):
-    cell.width = Inches(inches)
-    tc = cell._tc
-    tc_pr = tc.get_or_add_tcPr()
-    for old in tc_pr.findall(qn("w:tcW")):
-        tc_pr.remove(old)
-    tc_w = OxmlElement("w:tcW")
-    tc_w.set(qn("w:w"), str(int(inches * 1440)))
-    tc_w.set(qn("w:type"), "dxa")
-    tc_pr.append(tc_w)
-
-
 def build_header_probe(item, path: Path):
     doc = Document()
     _section(doc, 2.0, top_in=0.15, bottom_in=0.1)
@@ -207,42 +172,82 @@ def build_current_entry(item, path: Path):
     _write(doc, path)
 
 
+def _anchor_logo_left(paragraph, image_path, height_pt, width_pt):
+    """Float the mark at the left of the column. A table cell was clipping it.
+
+    LibreOffice clips an inline picture to the cell's content box, and the
+    default table style keeps side padding even when the cell margin is 0.
+    The name glow already uses a floating drawing, so this is the same path.
+    """
+    run = paragraph.add_run()
+    run.bold = False
+    run.add_picture(str(image_path), width=Pt(width_pt), height=Pt(height_pt))
+    drawing = run._element.find(qn("w:drawing"))
+    inline = drawing.find(qn("wp:inline"))
+    extent = inline.find(qn("wp:extent"))
+    cx, cy = extent.get("cx"), extent.get("cy")
+    doc_pr = inline.find(qn("wp:docPr"))
+    for el in drawing.iter():
+        if el.tag.endswith("docPr") or el.tag.endswith("cNvPr"):
+            el.set("descr", "")
+            el.set("name", "")
+    graphic = inline.find(qn("a:graphic"))
+
+    anchor = OxmlElement("wp:anchor")
+    for attr, val in {
+        "distT": "0",
+        "distB": "0",
+        "distL": "0",
+        "distR": str(int(GAP_PT * 12700)),
+        "simplePos": "0",
+        "relativeHeight": "251658240",
+        "behindDoc": "0",
+        "locked": "0",
+        "layoutInCell": "1",
+        "allowOverlap": "1",
+    }.items():
+        anchor.set(attr, val)
+    simple = OxmlElement("wp:simplePos")
+    simple.set("x", "0")
+    simple.set("y", "0")
+    anchor.append(simple)
+    pos_h = OxmlElement("wp:positionH")
+    pos_h.set("relativeFrom", "column")
+    off_h = OxmlElement("wp:posOffset")
+    off_h.text = "0"
+    pos_h.append(off_h)
+    anchor.append(pos_h)
+    pos_v = OxmlElement("wp:positionV")
+    pos_v.set("relativeFrom", "paragraph")
+    off_v = OxmlElement("wp:posOffset")
+    off_v.text = "0"
+    pos_v.append(off_v)
+    anchor.append(pos_v)
+    ext = OxmlElement("wp:extent")
+    ext.set("cx", cx)
+    ext.set("cy", cy)
+    anchor.append(ext)
+    effect = OxmlElement("wp:effectExtent")
+    for side in ("l", "t", "r", "b"):
+        effect.set(side, "0")
+    anchor.append(effect)
+    wrap = OxmlElement("wp:wrapSquare")
+    wrap.set("wrapText", "bothSides")
+    anchor.append(wrap)
+    anchor.append(doc_pr)
+    c_nv = inline.find(qn("wp:cNvGraphicFramePr"))
+    if c_nv is not None:
+        anchor.append(c_nv)
+    anchor.append(graphic)
+    drawing.remove(inline)
+    drawing.append(anchor)
+
+
 def build_sample(item, path: Path, logo_path: Path, logo_height_pt: float, logo_width_pt: float, page_height_in: float):
     doc = Document()
     _section(doc, page_height_in, top_in=0.16, bottom_in=0.1)
-    table = doc.add_table(rows=1, cols=2)
-    table.autofit = False
-    table.allow_autofit = False
-    _clear_table_borders(table)
-    logo_col = logo_width_pt / 72
-    text_col = CONTENT_WIDTH_IN - logo_col
-    _set_cell_width(table.cell(0, 0), logo_col)
-    _set_cell_width(table.cell(0, 1), text_col)
-    table.columns[0].width = Inches(logo_col)
-    table.columns[1].width = Inches(text_col)
-
-    logo_cell = table.cell(0, 0)
-    text_cell = table.cell(0, 1)
-    logo_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    text_cell.vertical_alignment = WD_ALIGN_VERTICAL.TOP
-
-    logo_p = logo_cell.paragraphs[0]
-    logo_p.paragraph_format.space_before = Pt(0)
-    logo_p.paragraph_format.space_after = Pt(0)
-    logo_p.paragraph_format.line_spacing = 1.0
-    run = logo_p.add_run()
-    run.bold = False
-    run.add_picture(str(logo_path), height=Pt(logo_height_pt))
-    drawing = run._element.find(qn("w:drawing"))
-    if drawing is not None:
-        for el in drawing.iter():
-            if el.tag.endswith("docPr") or el.tag.endswith("cNvPr"):
-                el.set("descr", "")
-                el.set("name", "")
-
-    # Drop the cell's placeholder paragraph and write the two lines into the cell.
-    text_cell.paragraphs[0]._element.getparent().remove(text_cell.paragraphs[0]._element)
-    _add_title_company(text_cell, item, left_indent_pt=GAP_PT)
+    head, _meta = _add_title_company(doc, item, left_indent_pt=logo_width_pt + GAP_PT)
+    _anchor_logo_left(head, logo_path, logo_height_pt, logo_width_pt)
     _add_bullets(doc, item)
     _write(doc, path)
 
@@ -315,6 +320,14 @@ def _body_slack_pt(pdf: Path) -> tuple[float, float]:
     return float(slack_to_footer), float(slack_to_page)
 
 
+def _append_mark_row(doc, item, logo_path, logo_height, logo_width):
+    head, _meta = _add_title_company(doc, item, left_indent_pt=logo_width + GAP_PT)
+    _anchor_logo_left(head, logo_path, logo_height, logo_width)
+    spacer = doc.add_paragraph()
+    spacer.paragraph_format.space_before = Pt(8)
+    spacer.paragraph_format.space_after = Pt(0)
+
+
 def main():
     item = _mercedes()
     work = Path(tempfile.mkdtemp(prefix="mercedes-sample-"))
@@ -375,6 +388,41 @@ def main():
     png_size = _render_png(SAMPLE_PDF, SAMPLE_PNG, dpi=216)
     slack_footer, slack_page = _body_slack_pt(ROOT / "uploads" / "Efrain_Plascencia_Resume.pdf")
 
+    timeline, _meta = mr.load_data()
+    by_org = {entry["org"]: entry for entry in timeline}
+    order = [
+        "GEMMACON North America",
+        "PACCAR",
+        "Toyota Motor North America",
+        "Hyundai Autoever Telematics America",
+        "California State University, Long Beach",
+        "Mercedes-Benz R&D North America",
+    ]
+    check_doc = Document()
+    _section(check_doc, 4.6, top_in=0.22, bottom_in=0.15)
+    for org in order:
+        entry = by_org[org]
+        png = work / f"{Path(entry['logo']).stem}.png"
+        width = _raster_logo(ROOT / entry["logo"], png, logo_height)
+        _append_mark_row(
+            check_doc,
+            {
+                "title": entry["title"],
+                "dates": entry["dates"],
+                "org": entry["org"],
+                "city": entry.get("city") or "",
+            },
+            png,
+            logo_height,
+            width,
+        )
+    check_docx = work / "logos-check.docx"
+    _write(check_doc, check_docx)
+    check_pdf = _pdf(check_docx)
+    if _page_count(check_pdf) != 1:
+        raise SystemExit(f"logo check spilled to {_page_count(check_pdf)} pages")
+    _render_png(check_pdf, CHECK_PNG, dpi=160)
+
     print(f"logo height (two lines): {logo_height:.2f} pt")
     print(f"logo width: {logo_width:.2f} pt")
     print(f"current entry height: {current_h:.2f} pt")
@@ -385,6 +433,7 @@ def main():
     print(f"body slack to page edge: {slack_page:.1f} pt")
     print(f"png: {SAMPLE_PNG} {png_size}")
     print(f"pdf: {SAMPLE_PDF}")
+    print(f"check: {CHECK_PNG}")
     print("--- pdftotext ---")
     print(text.rstrip())
     print("--- order ---")
