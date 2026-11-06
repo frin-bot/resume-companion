@@ -105,6 +105,38 @@ class ResumeLogoTests(unittest.TestCase):
             if text.startswith("• "):
                 self.assertNotEqual(paragraph.paragraph_format.left_indent, indent)
 
+    def test_logo_offset_includes_the_title_space_before(self):
+        """The mark is centered on the two header lines, not on the spacing above them."""
+        from docx import Document
+        from docx.oxml.ns import qn
+
+        self._build(self.out, compact=True)
+        doc = Document(str(self.out))
+        expected = {
+            "Director of AI Deployment & Solutions,": mr.logo_anchor_space(
+                mr.COMPACT_AFTER_HEADING, mr.COMPACT_HEADING_AFTER
+            ),
+            "Lead Test Engineer,": mr.logo_anchor_space(mr.COMPACT_ROLE_BEFORE),
+            "End-to-End Quality Engineer,": mr.logo_anchor_space(mr.COMPACT_ROLE_BEFORE),
+            "Bachelor of Science,": mr.logo_anchor_space(
+                mr.COMPACT_AFTER_HEADING, mr.COMPACT_HEADING_AFTER
+            ),
+        }
+        seen = set()
+        for paragraph in doc.paragraphs:
+            text = _para_text(paragraph)
+            match = next((prefix for prefix in expected if text.startswith(prefix)), None)
+            if match is None:
+                continue
+            seen.add(match)
+            anchor = paragraph._p.find(".//" + qn("wp:anchor"))
+            extent = anchor.find(qn("wp:extent"))
+            height_pt = int(extent.get("cy")) / 12700
+            offset_pt = int(anchor.find(".//" + qn("wp:positionV")).find(qn("wp:posOffset")).text) / 12700
+            want = expected[match] + (mr.LOGO_COLUMN_PT - height_pt) / 2
+            self.assertAlmostEqual(offset_pt, want, places=2, msg=text)
+        self.assertEqual(seen, set(expected))
+
     def test_missing_logo_still_indents_and_keeps_the_name(self):
         from docx import Document
         from docx.oxml.ns import qn
