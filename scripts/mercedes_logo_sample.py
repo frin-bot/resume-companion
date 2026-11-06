@@ -13,10 +13,8 @@ import tempfile
 from pathlib import Path
 
 from docx import Document
-from docx.oxml import OxmlElement
-from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
-from PIL import Image, ImageChops
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -32,7 +30,7 @@ PAGE_WIDTH_IN = 8.5
 # Same text width as the one-page resume (0.5in margins).
 MARGIN_X_IN = 0.5
 CONTENT_WIDTH_IN = PAGE_WIDTH_IN - 2 * MARGIN_X_IN
-GAP_PT = 6.0  # same gap after the logo column on every entry
+GAP_PT = mr.LOGO_COLUMN_GAP_PT
 # Variant-only marks. The site still uses logos/gemmacon.png and logos/csulb.svg.
 VARIANT_LOGOS = {
     "GEMMACON North America": ROOT / "logos" / "gemmacon-g.png",
@@ -133,171 +131,19 @@ def _add_bullets(doc, item):
         mr.add_bullet(doc, mr.plain_bullet(bullet), compact=True)
 
 
-def _load_rgba(src: Path) -> Image.Image:
-    if src.suffix.lower() == ".svg":
-        raw_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-        raw_file.close()
-        raw = Path(raw_file.name)
-        try:
-            mr._svg_to_png(src, raw, height_px=800)
-            with Image.open(raw) as opened:
-                return opened.convert("RGBA")
-        finally:
-            raw.unlink(missing_ok=True)
-    with Image.open(src) as opened:
-        return opened.convert("RGBA")
-
-
-def _ink_trimmed(image: Image.Image) -> Image.Image:
-    """Drop white or transparent margins and paint the mark in resume ink."""
-    image = image.convert("RGBA")
-    width, height = image.size
-    corners = (
-        image.getpixel((0, 0)),
-        image.getpixel((width - 1, 0)),
-        image.getpixel((0, height - 1)),
-        image.getpixel((width - 1, height - 1)),
-    )
-    white_canvas = sum(
-        1 for r, g, b, a in corners if a > 200 and r > 235 and g > 235 and b > 235
-    ) >= 2
-    red, green, blue, alpha = image.split()
-    if white_canvas:
-        # Near-white paper becomes transparent; darker pixels keep their coverage.
-        luma = Image.merge("RGB", (red, green, blue)).convert("L")
-        coverage = luma.point(lambda p: 0 if p > 245 else 255 - p)
-        alpha = ImageChops.multiply(alpha, coverage)
-    ink = Image.new("RGBA", image.size, (0x1A, 0x1A, 0x1A, 0))
-    ink.putalpha(alpha)
-    bbox = ink.getbbox()
-    if bbox:
-        ink = ink.crop(bbox)
-    return ink
-
-
 def _fit_logo(src: Path, dest: Path, box_w_pt: float, box_h_pt: float) -> tuple[float, float]:
-    """Scale the mark to fit inside the box. Returns the drawn width and height."""
-    ink = _ink_trimmed(_load_rgba(src))
-    if ink.width < 1 or ink.height < 1:
-        raise SystemExit(f"empty logo after trim: {src}")
-    scale = min(box_w_pt / ink.width, box_h_pt / ink.height)
-    draw_w = ink.width * scale
-    draw_h = ink.height * scale
-    target_h = max(1, round(draw_h * mr.LOGO_PX_PER_PT))
-    target_w = max(1, round(ink.width * (target_h / ink.height)))
-    ink = ink.resize((target_w, target_h), Image.Resampling.LANCZOS)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    ink.save(dest, "PNG", optimize=True)
-    # Use the pixel aspect so Word cannot stretch the file.
-    return target_w / mr.LOGO_PX_PER_PT, target_h / mr.LOGO_PX_PER_PT
-
-
-def source_logo(item) -> Path:
-    override = VARIANT_LOGOS.get(item["org"])
-    path = override if override is not None else ROOT / item["logo"]
-    if not path.is_file():
-        raise SystemExit(f"missing logo asset: {path}")
-    return path
-
-
-def build_header_probe(item, path: Path):
-    doc = Document()
-    _section(doc, 2.0, top_in=0.15, bottom_in=0.1)
-    _add_title_company(doc, item)
-    _write(doc, path)
-
-
-def build_current_entry(item, path: Path):
-    """The entry as the one-page resume draws it: no side logo."""
-    doc = Document()
-    _section(doc, 3.0)
-    mr.add_compact_role(doc, item, before=0)
-    _write(doc, path)
-
-
-def _anchor_logo_left(paragraph, image_path, height_pt, width_pt, offset_x_pt=0, offset_y_pt=0):
-    """Float the mark inside the shared column. A table cell was clipping it.
-
-    LibreOffice clips an inline picture to the cell content box. The name glow
-    already uses a floating drawing, so this is the same path. Offsets center
-    a smaller mark inside the fixed column and the two-line box.
-    """
-    run = paragraph.add_run()
-    run.bold = False
-    run.add_picture(str(image_path), width=Pt(width_pt), height=Pt(height_pt))
-    drawing = run._element.find(qn("w:drawing"))
-    inline = drawing.find(qn("wp:inline"))
-    extent = inline.find(qn("wp:extent"))
-    cx, cy = extent.get("cx"), extent.get("cy")
-    doc_pr = inline.find(qn("wp:docPr"))
-    for el in drawing.iter():
-        if el.tag.endswith("docPr") or el.tag.endswith("cNvPr"):
-            el.set("descr", "")
-            el.set("name", "")
-    graphic = inline.find(qn("a:graphic"))
-
-    anchor = OxmlElement("wp:anchor")
-    for attr, val in {
-        "distT": "0",
-        "distB": "0",
-        "distL": "0",
-        "distR": str(int(GAP_PT * 12700)),
-        "simplePos": "0",
-        "relativeHeight": "251658240",
-        "behindDoc": "0",
-        "locked": "0",
-        "layoutInCell": "1",
-        "allowOverlap": "1",
-    }.items():
-        anchor.set(attr, val)
-    simple = OxmlElement("wp:simplePos")
-    simple.set("x", "0")
-    simple.set("y", "0")
-    anchor.append(simple)
-    pos_h = OxmlElement("wp:positionH")
-    pos_h.set("relativeFrom", "column")
-    off_h = OxmlElement("wp:posOffset")
-    off_h.text = str(int(round(offset_x_pt * 12700)))
-    pos_h.append(off_h)
-    anchor.append(pos_h)
-    pos_v = OxmlElement("wp:positionV")
-    pos_v.set("relativeFrom", "paragraph")
-    off_v = OxmlElement("wp:posOffset")
-    off_v.text = str(int(round(offset_y_pt * 12700)))
-    pos_v.append(off_v)
-    anchor.append(pos_v)
-    ext = OxmlElement("wp:extent")
-    ext.set("cx", cx)
-    ext.set("cy", cy)
-    anchor.append(ext)
-    effect = OxmlElement("wp:effectExtent")
-    for side in ("l", "t", "r", "b"):
-        effect.set(side, "0")
-    anchor.append(effect)
-    wrap = OxmlElement("wp:wrapSquare")
-    wrap.set("wrapText", "bothSides")
-    anchor.append(wrap)
-    anchor.append(doc_pr)
-    c_nv = inline.find(qn("wp:cNvGraphicFramePr"))
-    if c_nv is not None:
-        anchor.append(c_nv)
-    anchor.append(graphic)
-    drawing.remove(inline)
-    drawing.append(anchor)
+    """Same fitter the resume uses. The column is a square, so one box size."""
+    if abs(box_w_pt - box_h_pt) > 0.05:
+        raise SystemExit(f"logo column is square; got {box_w_pt:.2f} x {box_h_pt:.2f}")
+    return mr._fit_logo(src, dest, box_pt=box_w_pt)
 
 
 def build_sample(item, path: Path, logo_path: Path, logo_height_pt: float, logo_width_pt: float, page_height_in: float, column_pt: float, box_h_pt: float):
     doc = Document()
     _section(doc, page_height_in, top_in=0.16, bottom_in=0.1)
     head, _meta = _add_title_company(doc, item, left_indent_pt=column_pt + GAP_PT)
-    _anchor_logo_left(
-        head,
-        logo_path,
-        logo_height_pt,
-        logo_width_pt,
-        offset_x_pt=(column_pt - logo_width_pt) / 2,
-        offset_y_pt=(box_h_pt - logo_height_pt) / 2,
-    )
+    # space_before is 0 here, matching this sample's title paragraph.
+    mr._anchor_logo_in_column(head, logo_path, logo_width_pt, logo_height_pt, space_before_pt=0)
     _add_bullets(doc, item)
     _write(doc, path)
 
@@ -372,14 +218,7 @@ def _body_slack_pt(pdf: Path) -> tuple[float, float]:
 
 def _append_mark_row(doc, item, logo_path, logo_height, logo_width, column_pt, box_h_pt):
     head, _meta = _add_title_company(doc, item, left_indent_pt=column_pt + GAP_PT)
-    _anchor_logo_left(
-        head,
-        logo_path,
-        logo_height,
-        logo_width,
-        offset_x_pt=(column_pt - logo_width) / 2,
-        offset_y_pt=(box_h_pt - logo_height) / 2,
-    )
+    mr._anchor_logo_in_column(head, logo_path, logo_width, logo_height, space_before_pt=0)
     spacer = doc.add_paragraph()
     spacer.paragraph_format.space_before = Pt(8)
     spacer.paragraph_format.space_after = Pt(0)
@@ -392,9 +231,11 @@ def main():
     build_header_probe(item, probe_docx)
     probe_pdf = _pdf(probe_docx)
     header_box, _img = _ink_box(probe_pdf, dpi=144)
-    box_h = header_box[3] - header_box[1]
-    # Square column: round and square marks fill the two-line box.
-    column_pt = box_h
+    measured_pt = header_box[3] - header_box[1]
+    # Same square the resume draws. The probe only reports the ink height.
+    column_pt = mr.LOGO_COLUMN_PT
+    box_h = column_pt
+    print(f"measured two-line ink: {measured_pt:.2f} pt; shared column: {column_pt:.2f} pt")
     logo_png = work / "mercedes.png"
     logo_width, logo_height = _fit_logo(source_logo(item), logo_png, column_pt, box_h)
 

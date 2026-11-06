@@ -438,15 +438,21 @@ def add_bottom_border(paragraph, color=RULE, size=4):
 
 # Compact rhythm. Section gaps carry most of the air; role gaps are smaller.
 COMPACT_SECTION_BEFORE = 7  # pt above each section heading
+COMPACT_HEADING_AFTER = 1  # pt of space_after on a compact section heading
 COMPACT_ROLE_BEFORE = 5  # pt above a role that follows another role
 COMPACT_AFTER_HEADING = 2  # pt between a heading and the first line under it
+# The G stays 21.5 pt, like the other marks, and its center sits on the
+# midpoint of GEMMACON's three titles plus the company line. Measured on
+# the one-page PDF at 216 dpi: that block runs 273.00 to 321.33 pt, and a
+# mark anchored to the first title is centered at 281.33 pt.
+GEMMACON_BLOCK_CENTER_NUDGE_PT = 47.5 / 3
 
 
 def section_label(doc, number, label, compact=False):
     p = doc.add_paragraph()
     # Compact space-before stays small so the one-page PDF still clears the footer.
     p.paragraph_format.space_before = Pt(COMPACT_SECTION_BEFORE if compact else 16)
-    p.paragraph_format.space_after = Pt(1 if compact else 6)
+    p.paragraph_format.space_after = Pt(COMPACT_HEADING_AFTER if compact else 6)
     if compact:
         # Normal spelling in the text layer ("Experience"). Accent color and
         # tracking make the heading read as a label, not a job title.
@@ -614,11 +620,28 @@ def _indent_logo_column(paragraph):
     paragraph.paragraph_format.left_indent = Pt(LOGO_TEXT_INDENT_PT)
 
 
-def _anchor_logo_in_column(paragraph, image_path, width_pt, height_pt):
-    """Float the mark, centered in the fixed column. Not a table cell.
+def logo_anchor_space(space_before_pt, previous_space_after_pt=0):
+    """Space_before that LibreOffice includes in a paragraph-relative anchor.
+
+    Adjacent spacing collapses to the larger value. The anchor includes the
+    part of this paragraph's space_before that the previous paragraph's
+    space_after does not already cover.
+    """
+    return max(0, space_before_pt - previous_space_after_pt)
+
+
+def _anchor_logo_in_column(paragraph, image_path, width_pt, height_pt, space_before_pt=0, extra_y_pt=0):
+    """Float the mark, centered on the two header lines. Not a table cell.
 
     A table cell clips the picture: LibreOffice keeps the default table
     style's side padding and cuts off whatever does not fit.
+
+    The anchor is paragraph-relative, and LibreOffice measures that from
+    the top of the paragraph's space_before. The sample page has no space
+    before the title, so the offset adds this paragraph's space_before
+    back. Without that, the mark sits on the title line instead of across
+    the title and the company line. Pass the space_before that survives
+    collapse with the previous paragraph: see logo_anchor_space.
     """
     run = paragraph.add_run()
     run.bold = False
@@ -660,7 +683,8 @@ def _anchor_logo_in_column(paragraph, image_path, width_pt, height_pt):
     pos_v = OxmlElement("wp:positionV")
     pos_v.set("relativeFrom", "paragraph")
     off_v = OxmlElement("wp:posOffset")
-    off_v.text = str(int(round((LOGO_COLUMN_PT - height_pt) / 2 * 12700)))
+    offset_y_pt = space_before_pt + extra_y_pt + (LOGO_COLUMN_PT - height_pt) / 2
+    off_v.text = str(int(round(offset_y_pt * 12700)))
     pos_v.append(off_v)
     anchor.append(pos_v)
     ext = OxmlElement("wp:extent")
@@ -760,7 +784,7 @@ def _tight_paragraph(doc, before=0, after=0):
     return p
 
 
-def add_compact_role(doc, item, before=2, logo=None):
+def add_compact_role(doc, item, before=2, logo=None, follows_heading=False):
     """logo is (png_path, width_pt, height_pt) or None."""
     head = _tight_paragraph(doc, before=before, after=0)
     _indent_logo_column(head)
@@ -769,7 +793,12 @@ def add_compact_role(doc, item, before=2, logo=None):
     dates = head.add_run(f", {format_resume_dates(item['dates'])}")
     set_font(dates, FF_DISPLAY, 11.5, INK_3, bold=False)
     if logo:
-        _anchor_logo_in_column(head, *logo)
+        previous_after = COMPACT_HEADING_AFTER if follows_heading else 0
+        _anchor_logo_in_column(
+            head,
+            *logo,
+            space_before_pt=logo_anchor_space(before, previous_after),
+        )
     meta = _tight_paragraph(doc, before=0, after=1)
     _indent_logo_column(meta)
     org = meta.add_run(format_org_line(item["org"], item["city"]))
@@ -783,7 +812,7 @@ def add_compact_gemmacon(doc, item, logo=None):
     """Three title lines, then one company line in the same style as other roles.
 
     The mark uses the same 21.5 pt box as every other entry. It is not
-    stretched down the three titles.
+    stretched down the three titles. It is centered on the whole header.
     """
     promotions = list(reversed(item.get("promotions") or []))
     for index, promo in enumerate(promotions):
@@ -794,7 +823,14 @@ def add_compact_gemmacon(doc, item, logo=None):
         dates = line.add_run(f", {format_resume_dates(promo['dates'])}")
         set_font(dates, FF_DISPLAY, 11.5, INK_3, bold=False)
         if index == 0 and logo:
-            _anchor_logo_in_column(line, *logo)
+            _anchor_logo_in_column(
+                line,
+                *logo,
+                space_before_pt=logo_anchor_space(
+                    COMPACT_AFTER_HEADING, COMPACT_HEADING_AFTER
+                ),
+                extra_y_pt=GEMMACON_BLOCK_CENTER_NUDGE_PT,
+            )
     meta = _tight_paragraph(doc, before=0, after=1)
     _indent_logo_column(meta)
     org = meta.add_run(format_org_line(item["org"], item["city"]))
@@ -1008,6 +1044,7 @@ def build_document(timeline, meta, compact=False, logos=None):
                     doc,
                     item,
                     before=COMPACT_AFTER_HEADING if item.get("type") == "education" else COMPACT_ROLE_BEFORE,
+                    follows_heading=item.get("type") == "education",
                     logo=logo,
                 )
             continue
