@@ -1,8 +1,16 @@
 """Generate Efrain_Plascencia_Resume.docx from the site's resume-data.js,
-matching the site's Inter / swiss aesthetic."""
+matching the site's Inter / swiss aesthetic.
+
+`python make_resume.py --logos` writes a review-only one-page variant with
+the site's company and school marks inline on each organization line. It
+does not replace uploads/Efrain_Plascencia_Resume.docx or .pdf.
+"""
 import json
 import math
 import re
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 
 from docx import Document
@@ -30,6 +38,13 @@ FF_MONO = "JetBrains Mono"
 
 ROOT = Path(__file__).parent
 OUTPUT = ROOT / "uploads" / "Efrain_Plascencia_Resume.docx"
+LOGO_VARIANT_OUTPUT = ROOT / "variants" / "resume-logos.docx"
+# Company line is 8pt. Every mark uses that height so the line box does not
+# grow and the one-page layout stays put. CSULB is a two-line wordmark, so
+# its letters are smaller inside the same box.
+LOGO_HEIGHT_PT = 8.0
+LOGO_GAP_PT = 3.0
+LOGO_PX_PER_PT = 16
 MEMOJI = ROOT / "comic_standard_transparent.png"
 MEMOJI_CIRCLE = ROOT / "_memoji_circle.png"
 NAME_GLOW = ROOT / "_name_glow.png"
@@ -496,6 +511,99 @@ def format_org_line(org, city):
     return org
 
 
+def resolve_resume_build(argv):
+    """Return (output path, compact, logos) for a CLI argv list.
+
+    --logos always builds the one-page resume into variants/resume-logos.docx.
+    The canonical uploads resume is left untouched.
+    """
+    if "--logos" in argv:
+        return LOGO_VARIANT_OUTPUT, True, True
+    return OUTPUT, "--full" not in argv, False
+
+
+def _logo_source(item):
+    """Site logo for this role, or None when the repo has no such file."""
+    rel = (item.get("logo") or "").strip()
+    if not rel:
+        return None
+    path = (ROOT / rel).resolve()
+    try:
+        path.relative_to(ROOT.resolve())
+    except ValueError:
+        return None
+    if path.is_file():
+        return path
+    return None
+
+
+def _svg_to_png(src, dest, height_px):
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    rsvg = shutil.which("rsvg-convert")
+    if rsvg:
+        subprocess.check_call(
+            [rsvg, "-h", str(height_px), "-o", str(dest), str(src)],
+            stdout=subprocess.DEVNULL,
+        )
+        return
+    import cairosvg
+
+    cairosvg.svg2png(url=str(src), write_to=str(dest), output_height=height_px)
+
+
+def _rasterize_logo(src, dest, height_pt=LOGO_HEIGHT_PT):
+    """Trim a site logo to ink on transparency, at a fixed height.
+
+    The site flattens these files to the page ink (`brightness(0)`). The
+    resume uses the same monochrome treatment. A transparent pad on the left
+    is the gap after the organization name, so the text layer gains no space
+    character.
+    """
+    if src.suffix.lower() == ".svg":
+        raw_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        raw_file.close()
+        raw = Path(raw_file.name)
+        try:
+            _svg_to_png(src, raw, height_px=480)
+            with Image.open(raw) as opened:
+                image = opened.convert("RGBA")
+        finally:
+            raw.unlink(missing_ok=True)
+    else:
+        with Image.open(src) as opened:
+            image = opened.convert("RGBA")
+
+    _r, _g, _b, alpha = image.split()
+    ink = Image.new("RGBA", image.size, (0x1A, 0x1A, 0x1A, 0))
+    ink.putalpha(alpha)
+    bbox = ink.getbbox()
+    if bbox:
+        ink = ink.crop(bbox)
+    target_h = max(1, round(height_pt * LOGO_PX_PER_PT))
+    target_w = max(1, round(ink.width * (target_h / ink.height)))
+    ink = ink.resize((target_w, target_h), Image.Resampling.LANCZOS)
+    gap = round(LOGO_GAP_PT * LOGO_PX_PER_PT)
+    padded = Image.new("RGBA", (ink.width + gap, ink.height), (0, 0, 0, 0))
+    padded.paste(ink, (gap, 0))
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    padded.save(dest, "PNG", optimize=True)
+    return dest
+
+
+def _add_inline_logo(paragraph, image_path, height_pt=LOGO_HEIGHT_PT):
+    """Decorative inline mark. Empty alt text, after the organization name."""
+    run = paragraph.add_run()
+    run.bold = False
+    run.add_picture(str(image_path), height=Pt(height_pt))
+    drawing = run._element.find(qn("w:drawing"))
+    if drawing is None:
+        return
+    for el in drawing.iter():
+        if el.tag.endswith("docPr") or el.tag.endswith("cNvPr"):
+            el.set("descr", "")
+            el.set("name", "")
+
+
 def _place_picture_in_front(paragraph, image_path, width_inches):
     """Float the picture over the paragraph text, centered, same width.
 
@@ -573,7 +681,7 @@ def _tight_paragraph(doc, before=0, after=0):
     return p
 
 
-def add_compact_role(doc, item, before=2):
+def add_compact_role(doc, item, before=2, logo_path=None, logo_height=None):
     head = _tight_paragraph(doc, before=before, after=0)
     title = head.add_run(format_resume_title(item["title"]))
     set_font(title, FF_DISPLAY, 11.5, INK, bold=False)
@@ -582,12 +690,14 @@ def add_compact_role(doc, item, before=2):
     meta = _tight_paragraph(doc, before=0, after=1)
     org = meta.add_run(format_org_line(item["org"], item["city"]))
     set_font(org, FF_MONO, 8, INK_2)
+    if logo_path:
+        _add_inline_logo(meta, logo_path, logo_height or LOGO_HEIGHT_PT)
     bullets = item["resumeBullets"] if "resumeBullets" in item else item.get("bullets", [])
     for bullet in bullets:
         add_bullet(doc, plain_bullet(bullet), compact=True)
 
 
-def add_compact_gemmacon(doc, item):
+def add_compact_gemmacon(doc, item, logo_path=None, logo_height=None):
     """Three title lines, then one company line in the same style as other roles."""
     promotions = list(reversed(item.get("promotions") or []))
     for index, promo in enumerate(promotions):
@@ -599,6 +709,8 @@ def add_compact_gemmacon(doc, item):
     meta = _tight_paragraph(doc, before=0, after=1)
     org = meta.add_run(format_org_line(item["org"], item["city"]))
     set_font(org, FF_MONO, 8, INK_2)
+    if logo_path:
+        _add_inline_logo(meta, logo_path, logo_height or LOGO_HEIGHT_PT)
     bullets = item["resumeBullets"] if "resumeBullets" in item else item.get("bullets", [])
     for bullet in bullets:
         add_bullet(doc, plain_bullet(bullet), compact=True)
@@ -673,8 +785,22 @@ def add_compact_extras_strip(doc, extras):
             set_font(run, FF_BODY, 8, INK_2)
 
 
-def build_document(timeline, meta, compact=False):
+def build_document(timeline, meta, compact=False, logos=False):
     doc = Document()
+    logo_paths = {}
+    skipped_logos = []
+    logo_dir = None
+    if logos and compact:
+        logo_dir = Path(tempfile.mkdtemp(prefix="resume-logos-"))
+        for item in timeline:
+            src = _logo_source(item)
+            if src is None:
+                skipped_logos.append(item.get("org") or "")
+                continue
+            logo_paths[id(item)] = (
+                _rasterize_logo(src, logo_dir / f"{src.stem}.png", LOGO_HEIGHT_PT),
+                LOGO_HEIGHT_PT,
+            )
 
     # Thin margins — tighter on the 1-pager so copy can breathe.
     for section in doc.sections:
@@ -786,13 +912,17 @@ def build_document(timeline, meta, compact=False):
             section_label(doc, "", "Education", compact=True)
             edu_headed = True
         if compact:
+            logo = logo_paths.get(id(item)) if logos else None
+            logo_path, logo_height = logo if logo else (None, None)
             if str(item.get("org", "")).startswith("GEMMACON") and item.get("promotions"):
-                add_compact_gemmacon(doc, item)
+                add_compact_gemmacon(doc, item, logo_path=logo_path, logo_height=logo_height)
             else:
                 add_compact_role(
                     doc,
                     item,
                     before=COMPACT_AFTER_HEADING if item.get("type") == "education" else COMPACT_ROLE_BEFORE,
+                    logo_path=logo_path,
+                    logo_height=logo_height,
                 )
             continue
         head = doc.add_paragraph()
@@ -1012,14 +1142,56 @@ def build_document(timeline, meta, compact=False):
     core.author = "Efrain Plascencia"
     core.last_modified_by = "Efrain Plascencia"
 
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    doc.save(str(OUTPUT))
-    print(f"Wrote {OUTPUT}")
+    try:
+        OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+        doc.save(str(OUTPUT))
+        print(f"Wrote {OUTPUT}")
+    finally:
+        if logo_dir is not None:
+            shutil.rmtree(logo_dir, ignore_errors=True)
+    return skipped_logos
+
+
+def export_docx_to_pdf(docx_path):
+    """LibreOffice conversion used for the review variant. Returns the PDF path."""
+    profile = docx_path.parent / "lo-profile"
+    profile.mkdir(parents=True, exist_ok=True)
+    subprocess.check_call(
+        [
+            "soffice",
+            f"-env:UserInstallation={profile.resolve().as_uri()}",
+            "--headless",
+            "--norestore",
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            str(docx_path.parent),
+            str(docx_path),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return docx_path.with_suffix(".pdf")
+
+
+def main(argv=None):
+    import sys
+
+    global OUTPUT
+    args = list(sys.argv[1:] if argv is None else argv)
+    output, compact, logos = resolve_resume_build(args)
+    OUTPUT = output
+    timeline, meta = load_data()
+    skipped = build_document(timeline, meta, compact=compact, logos=logos)
+    if logos:
+        present = [item.get("org") or "" for item in timeline if _logo_source(item)]
+        print("Logos: " + "; ".join(present))
+        if skipped:
+            print("No logo asset: " + "; ".join(skipped))
+        if shutil.which("soffice"):
+            pdf = export_docx_to_pdf(output)
+            print(f"Wrote {pdf}")
 
 
 if __name__ == "__main__":
-    import sys
-
-    timeline, meta = load_data()
-    compact = "--full" not in sys.argv
-    build_document(timeline, meta, compact=compact)
+    main()

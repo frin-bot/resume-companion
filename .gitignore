@@ -24,6 +24,9 @@ dist/
 _memoji_circle.png
 _name_glow.png
 
+# Review-only logo resume (python make_resume.py --logos). Not the live file.
+variants/
+
 # Local font/resume preview page — not for deploy
 preview-resume.html
 
