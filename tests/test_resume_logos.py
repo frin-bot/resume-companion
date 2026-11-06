@@ -1,4 +1,4 @@
-"""Logo variant keeps selectable resume text and adds inline decorative marks."""
+"""The one-page resume keeps its text and adds a fixed logo column."""
 from __future__ import annotations
 
 import sys
@@ -34,27 +34,11 @@ def _docx_text(path: Path) -> str:
     return "\n".join(parts)
 
 
-def _run_kinds(paragraph) -> list[str]:
-    """Order of text vs inline drawings in a paragraph."""
-    from docx.oxml.ns import qn
-
-    kinds = []
-    for child in paragraph._p:
-        if child.tag != qn("w:r"):
-            continue
-        if "".join(t.text or "" for t in child.findall(qn("w:t"))):
-            kinds.append("text")
-        if child.find(qn("w:drawing")) is not None:
-            kinds.append("drawing")
-    return kinds
-
-
 class ResumeLogoTests(unittest.TestCase):
     def setUp(self):
         self.timeline, self.meta = mr.load_data()
         self._tmp = tempfile.TemporaryDirectory()
-        self.plain = Path(self._tmp.name) / "plain.docx"
-        self.logos = Path(self._tmp.name) / "logos.docx"
+        self.out = Path(self._tmp.name) / "resume.docx"
         self._orig = mr.OUTPUT
 
     def tearDown(self):
@@ -65,105 +49,112 @@ class ResumeLogoTests(unittest.TestCase):
         mr.OUTPUT = path
         mr.build_document(timeline if timeline is not None else self.timeline, self.meta, **kwargs)
 
-    def test_logo_variant_text_matches_compact_resume(self):
-        self._build(self.plain, compact=True)
-        self._build(self.logos, compact=True, logos=True)
-        self.assertEqual(_docx_text(self.plain), _docx_text(self.logos))
+    def test_compact_text_keeps_title_dates_company_bullet_order(self):
+        self._build(self.out, compact=True)
+        flat = " ".join(_docx_text(self.out).split())
+        title = flat.find("End-to-End Quality Engineer")
+        dates = flat.find("Mar 2017 - Mar 2020")
+        company = flat.find("Mercedes-Benz R&D North America, Long Beach, CA")
+        bullet = flat.find("Led end-to-end testing")
+        self.assertTrue(0 <= title < dates < company < bullet)
+        self.assertIn("Director of AI Deployment & Solutions, Apr 2025 - Present", flat)
+        self.assertIn("California State University, Long Beach", flat)
+        self.assertIn("www.frin.bot", flat)
+        self.assertNotIn("213", flat)
+
+    def test_header_lines_share_one_indent_and_each_entry_has_one_mark(self):
         from docx import Document
+        from docx.oxml.ns import qn
+        from docx.shared import Pt
 
-        doc = Document(str(self.logos))
-        self.assertEqual(doc.core_properties.title, "Efrain Plascencia - Resume")
-        self.assertEqual(doc.core_properties.author, "Efrain Plascencia")
-        self.assertEqual(len(doc.tables), 0)
+        self._build(self.out, compact=True)
+        doc = Document(str(self.out))
+        indent = Pt(mr.LOGO_TEXT_INDENT_PT)
+        org_lines = {mr.format_org_line(item["org"], item["city"]) for item in self.timeline}
+        first_titles = set()
+        later_titles = set()
+        for item in self.timeline:
+            if item.get("promotions"):
+                titles = [mr.format_resume_title(p["title"]) for p in reversed(item["promotions"])]
+                first_titles.add(titles[0])
+                later_titles.update(titles[1:])
+            else:
+                first_titles.add(mr.format_resume_title(item["title"]))
+        seen_orgs = set()
+        seen_first = set()
+        for paragraph in doc.paragraphs:
+            text = _para_text(paragraph)
+            anchors = paragraph._p.findall(".//" + qn("wp:anchor"))
+            if text in org_lines:
+                seen_orgs.add(text)
+                self.assertEqual(paragraph.paragraph_format.left_indent, indent, text)
+                self.assertEqual(anchors, [], text)
+            elif any(text.startswith(title + ",") for title in first_titles):
+                seen_first.add(next(title for title in first_titles if text.startswith(title + ",")))
+                self.assertEqual(paragraph.paragraph_format.left_indent, indent, text)
+                self.assertEqual(len(anchors), 1, text)
+                for doc_pr in paragraph._p.findall(".//" + qn("wp:docPr")):
+                    self.assertFalse(doc_pr.get("descr"))
+            elif any(text.startswith(title + ",") for title in later_titles):
+                self.assertEqual(paragraph.paragraph_format.left_indent, indent, text)
+                self.assertEqual(anchors, [], text)
+        self.assertEqual(seen_orgs, org_lines)
+        self.assertEqual(seen_first, first_titles)
+        for paragraph in doc.paragraphs:
+            text = _para_text(paragraph)
+            if text.startswith("• "):
+                self.assertNotEqual(paragraph.paragraph_format.left_indent, indent)
 
-    def test_each_org_line_gets_one_inline_decorative_logo(self):
-        self._build(self.logos, compact=True, logos=True)
+    def test_missing_logo_still_indents_and_keeps_the_name(self):
         from docx import Document
         from docx.oxml.ns import qn
 
-        doc = Document(str(self.logos))
-        org_lines = {mr.format_org_line(item["org"], item["city"]) for item in self.timeline}
-        seen = set()
-        for paragraph in doc.paragraphs:
-            text = _para_text(paragraph)
-            if text not in org_lines:
-                continue
-            seen.add(text)
-            self.assertEqual(_run_kinds(paragraph), ["text", "drawing"], text)
-            self.assertEqual(len(paragraph._p.findall(".//" + qn("wp:anchor"))), 0, text)
-            for doc_pr in paragraph._p.findall(".//" + qn("wp:docPr")):
-                self.assertFalse(doc_pr.get("descr"), text)
-                self.assertNotIn(text.split(",")[0], doc_pr.get("name") or "", text)
-            for run in paragraph.runs:
-                self.assertFalse(run.bold, text)
-        self.assertEqual(seen, org_lines)
-
-    def test_title_lines_stay_text_only(self):
-        self._build(self.logos, compact=True, logos=True)
-        from docx import Document
-
-        doc = Document(str(self.logos))
-        titles = []
-        for item in self.timeline:
-            if item.get("promotions"):
-                titles.extend(mr.format_resume_title(p["title"]) for p in item["promotions"])
-            else:
-                titles.append(mr.format_resume_title(item["title"]))
-        found = 0
-        for paragraph in doc.paragraphs:
-            text = _para_text(paragraph)
-            if any(text.startswith(title + ",") for title in titles):
-                found += 1
-                self.assertNotIn("drawing", _run_kinds(paragraph), text)
-                self.assertIn("text", _run_kinds(paragraph), text)
-        self.assertEqual(found, len(titles))
-
-    def test_missing_logo_leaves_the_org_line_as_text(self):
         timeline = [dict(item) for item in self.timeline]
         for item in timeline:
             if item["org"] == "PACCAR":
                 item["logo"] = "logos/does-not-exist.svg"
-        self._build(self.logos, timeline=timeline, compact=True, logos=True)
-        from docx import Document
-
-        doc = Document(str(self.logos))
-        paccar = mr.format_org_line("PACCAR", "Lewisville, TX")
-        toyota = mr.format_org_line("Toyota Motor North America", "Plano, TX")
-        seen = {}
+        self._build(self.out, timeline=timeline, compact=True)
+        doc = Document(str(self.out))
+        paccar_title = None
+        toyota_title = None
         for paragraph in doc.paragraphs:
             text = _para_text(paragraph)
-            if text in (paccar, toyota):
-                seen[text] = _run_kinds(paragraph)
-        self.assertEqual(seen[paccar], ["text"])
-        self.assertEqual(seen[toyota], ["text", "drawing"])
+            if text.startswith("Lead Test Engineer,"):
+                paccar_title = paragraph
+            elif text.startswith("Senior Test Engineer,"):
+                toyota_title = paragraph
+            elif text == "PACCAR, Lewisville, TX":
+                self.assertNotIn("drawing", text)
+        self.assertIsNotNone(paccar_title)
+        self.assertEqual(len(paccar_title._p.findall(".//" + qn("wp:anchor"))), 0)
+        self.assertEqual(len(toyota_title._p.findall(".//" + qn("wp:anchor"))), 1)
 
-    def test_default_compact_org_lines_have_no_logo(self):
-        self._build(self.plain, compact=True)
+    def test_full_document_does_not_use_the_logo_column(self):
         from docx import Document
+        from docx.oxml.ns import qn
+        from docx.shared import Pt
 
-        doc = Document(str(self.plain))
-        org_lines = {mr.format_org_line(item["org"], item["city"]) for item in self.timeline}
-        hits = 0
+        self._build(self.out, compact=False)
+        doc = Document(str(self.out))
         for paragraph in doc.paragraphs:
-            if _para_text(paragraph) in org_lines:
-                hits += 1
-                self.assertEqual(_run_kinds(paragraph), ["text"])
-        self.assertEqual(hits, len(org_lines))
+            text = _para_text(paragraph)
+            if "Lead Test Engineer" not in text:
+                continue
+            self.assertNotEqual(paragraph.paragraph_format.left_indent, Pt(mr.LOGO_TEXT_INDENT_PT))
+            self.assertEqual(paragraph._p.findall(".//" + qn("wp:anchor")), [])
+            break
+        else:
+            self.fail("full resume is missing the PACCAR title")
 
-    def test_logos_flag_does_not_target_the_canonical_resume(self):
-        path, compact, logos = mr.resolve_resume_build(["--logos"])
-        self.assertTrue(logos)
+    def test_default_output_is_the_site_resume(self):
+        path, compact, logos = mr.resolve_resume_build([])
+        self.assertEqual(path, ROOT / "uploads" / "Efrain_Plascencia_Resume.docx")
         self.assertTrue(compact)
-        self.assertEqual(path.name, "resume-logos.docx")
-        self.assertNotEqual(path, ROOT / "uploads" / "Efrain_Plascencia_Resume.docx")
-        plain, compact_default, logos_default = mr.resolve_resume_build([])
-        self.assertFalse(logos_default)
-        self.assertTrue(compact_default)
-        self.assertEqual(plain, ROOT / "uploads" / "Efrain_Plascencia_Resume.docx")
+        self.assertTrue(logos)
         full, compact_full, logos_full = mr.resolve_resume_build(["--full"])
-        self.assertFalse(logos_full)
+        self.assertEqual(full, path)
         self.assertFalse(compact_full)
-        self.assertEqual(full, plain)
+        self.assertFalse(logos_full)
 
 
 if __name__ == "__main__":

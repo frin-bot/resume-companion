@@ -24,7 +24,10 @@ dist/
 _memoji_circle.png
 _name_glow.png
 
-# Review-only logo resume (python make_resume.py --logos). Not the live file.
+# Local LibreOffice profile created beside a converted docx.
+lo-profile/
+
+# Scratch renders from scripts/mercedes_logo_sample.py
 variants/
 
 # Local font/resume preview page — not for deploy

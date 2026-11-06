@@ -1,9 +1,8 @@
 """Generate Efrain_Plascencia_Resume.docx from the site's resume-data.js,
 matching the site's Inter / swiss aesthetic.
 
-`python make_resume.py --logos` writes a review-only one-page variant with
-the site's company and school marks inline on each organization line. It
-does not replace uploads/Efrain_Plascencia_Resume.docx or .pdf.
+The default one-page resume includes a fixed logo column beside each role.
+`python make_resume.py --full` writes the long document without that column.
 """
 import json
 import math
@@ -20,7 +19,7 @@ from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 # Colors pulled from styles.css (:root light theme). Accent is the
 # sRGB conversion of oklch(0.42 0.12 255).
@@ -38,13 +37,17 @@ FF_MONO = "JetBrains Mono"
 
 ROOT = Path(__file__).parent
 OUTPUT = ROOT / "uploads" / "Efrain_Plascencia_Resume.docx"
-LOGO_VARIANT_OUTPUT = ROOT / "variants" / "resume-logos.docx"
-# Company line is 8pt. Every mark uses that height so the line box does not
-# grow and the one-page layout stays put. CSULB is a two-line wordmark, so
-# its letters are smaller inside the same box.
-LOGO_HEIGHT_PT = 8.0
-LOGO_GAP_PT = 3.0
+# Approved column: as tall as the two header lines, same width, 6 pt gap.
+# GEMMACON uses this same box; it is not stretched across its three titles.
+LOGO_COLUMN_PT = 21.5
+LOGO_COLUMN_GAP_PT = 6.0
+LOGO_TEXT_INDENT_PT = LOGO_COLUMN_PT + LOGO_COLUMN_GAP_PT
 LOGO_PX_PER_PT = 16
+# Variant marks. The site cards still use logos/gemmacon.png and logos/csulb.svg.
+RESUME_LOGO_OVERRIDES = {
+    "GEMMACON North America": "logos/gemmacon-g.png",
+    "California State University, Long Beach": "logos/csulb-49ers.png",
+}
 MEMOJI = ROOT / "comic_standard_transparent.png"
 MEMOJI_CIRCLE = ROOT / "_memoji_circle.png"
 NAME_GLOW = ROOT / "_name_glow.png"
@@ -512,19 +515,19 @@ def format_org_line(org, city):
 
 
 def resolve_resume_build(argv):
-    """Return (output path, compact, logos) for a CLI argv list.
+    """Return (output path, compact, logos).
 
-    --logos always builds the one-page resume into variants/resume-logos.docx.
-    The canonical uploads resume is left untouched.
+    The one-page resume is the file the site serves, and it includes the
+    logo column. --full is the long document without that column.
     """
-    if "--logos" in argv:
-        return LOGO_VARIANT_OUTPUT, True, True
-    return OUTPUT, "--full" not in argv, False
+    compact = "--full" not in argv
+    return OUTPUT, compact, compact
 
 
 def _logo_source(item):
-    """Site logo for this role, or None when the repo has no such file."""
-    rel = (item.get("logo") or "").strip()
+    """Resume mark for this role, or None when the repo has no such file."""
+    rel = RESUME_LOGO_OVERRIDES.get(item.get("org") or "") or (item.get("logo") or "")
+    rel = rel.strip()
     if not rel:
         return None
     path = (ROOT / rel).resolve()
@@ -551,57 +554,133 @@ def _svg_to_png(src, dest, height_px):
     cairosvg.svg2png(url=str(src), write_to=str(dest), output_height=height_px)
 
 
-def _rasterize_logo(src, dest, height_pt=LOGO_HEIGHT_PT):
-    """Trim a site logo to ink on transparency, at a fixed height.
-
-    The site flattens these files to the page ink (`brightness(0)`). The
-    resume uses the same monochrome treatment. A transparent pad on the left
-    is the gap after the organization name, so the text layer gains no space
-    character.
-    """
+def _load_logo_rgba(src):
     if src.suffix.lower() == ".svg":
         raw_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
         raw_file.close()
         raw = Path(raw_file.name)
         try:
-            _svg_to_png(src, raw, height_px=480)
+            _svg_to_png(src, raw, height_px=800)
             with Image.open(raw) as opened:
-                image = opened.convert("RGBA")
+                return opened.convert("RGBA")
         finally:
             raw.unlink(missing_ok=True)
-    else:
-        with Image.open(src) as opened:
-            image = opened.convert("RGBA")
+    with Image.open(src) as opened:
+        return opened.convert("RGBA")
 
-    _r, _g, _b, alpha = image.split()
+
+def _ink_trimmed(image):
+    """Drop white or transparent margins and paint the mark in resume ink."""
+    image = image.convert("RGBA")
+    width, height = image.size
+    corners = (
+        image.getpixel((0, 0)),
+        image.getpixel((width - 1, 0)),
+        image.getpixel((0, height - 1)),
+        image.getpixel((width - 1, height - 1)),
+    )
+    white_canvas = sum(
+        1 for r, g, b, a in corners if a > 200 and r > 235 and g > 235 and b > 235
+    ) >= 2
+    red, green, blue, alpha = image.split()
+    if white_canvas:
+        luma = Image.merge("RGB", (red, green, blue)).convert("L")
+        coverage = luma.point(lambda p: 0 if p > 245 else 255 - p)
+        alpha = ImageChops.multiply(alpha, coverage)
     ink = Image.new("RGBA", image.size, (0x1A, 0x1A, 0x1A, 0))
     ink.putalpha(alpha)
     bbox = ink.getbbox()
     if bbox:
         ink = ink.crop(bbox)
-    target_h = max(1, round(height_pt * LOGO_PX_PER_PT))
+    return ink
+
+
+def _fit_logo(src, dest, box_pt=LOGO_COLUMN_PT):
+    """Scale a mark to fit the column box. Returns drawn width and height in pt."""
+    ink = _ink_trimmed(_load_logo_rgba(src))
+    if ink.width < 1 or ink.height < 1:
+        raise RuntimeError(f"empty logo after trim: {src}")
+    scale = min(box_pt / ink.width, box_pt / ink.height)
+    draw_h = ink.height * scale
+    target_h = max(1, round(draw_h * LOGO_PX_PER_PT))
     target_w = max(1, round(ink.width * (target_h / ink.height)))
     ink = ink.resize((target_w, target_h), Image.Resampling.LANCZOS)
-    gap = round(LOGO_GAP_PT * LOGO_PX_PER_PT)
-    padded = Image.new("RGBA", (ink.width + gap, ink.height), (0, 0, 0, 0))
-    padded.paste(ink, (gap, 0))
     dest.parent.mkdir(parents=True, exist_ok=True)
-    padded.save(dest, "PNG", optimize=True)
-    return dest
+    ink.save(dest, "PNG", optimize=True)
+    return target_w / LOGO_PX_PER_PT, target_h / LOGO_PX_PER_PT
 
 
-def _add_inline_logo(paragraph, image_path, height_pt=LOGO_HEIGHT_PT):
-    """Decorative inline mark. Empty alt text, after the organization name."""
+def _indent_logo_column(paragraph):
+    paragraph.paragraph_format.left_indent = Pt(LOGO_TEXT_INDENT_PT)
+
+
+def _anchor_logo_in_column(paragraph, image_path, width_pt, height_pt):
+    """Float the mark, centered in the fixed column. Not a table cell.
+
+    A table cell clips the picture: LibreOffice keeps the default table
+    style's side padding and cuts off whatever does not fit.
+    """
     run = paragraph.add_run()
     run.bold = False
-    run.add_picture(str(image_path), height=Pt(height_pt))
+    run.add_picture(str(image_path), width=Pt(width_pt), height=Pt(height_pt))
     drawing = run._element.find(qn("w:drawing"))
-    if drawing is None:
-        return
+    inline = drawing.find(qn("wp:inline"))
+    extent = inline.find(qn("wp:extent"))
+    cx, cy = extent.get("cx"), extent.get("cy")
+    doc_pr = inline.find(qn("wp:docPr"))
     for el in drawing.iter():
         if el.tag.endswith("docPr") or el.tag.endswith("cNvPr"):
             el.set("descr", "")
             el.set("name", "")
+    graphic = inline.find(qn("a:graphic"))
+    anchor = OxmlElement("wp:anchor")
+    for attr, val in {
+        "distT": "0",
+        "distB": "0",
+        "distL": "0",
+        "distR": str(int(LOGO_COLUMN_GAP_PT * 12700)),
+        "simplePos": "0",
+        "relativeHeight": "251658240",
+        "behindDoc": "0",
+        "locked": "0",
+        "layoutInCell": "1",
+        "allowOverlap": "1",
+    }.items():
+        anchor.set(attr, val)
+    simple = OxmlElement("wp:simplePos")
+    simple.set("x", "0")
+    simple.set("y", "0")
+    anchor.append(simple)
+    pos_h = OxmlElement("wp:positionH")
+    pos_h.set("relativeFrom", "column")
+    off_h = OxmlElement("wp:posOffset")
+    off_h.text = str(int(round((LOGO_COLUMN_PT - width_pt) / 2 * 12700)))
+    pos_h.append(off_h)
+    anchor.append(pos_h)
+    pos_v = OxmlElement("wp:positionV")
+    pos_v.set("relativeFrom", "paragraph")
+    off_v = OxmlElement("wp:posOffset")
+    off_v.text = str(int(round((LOGO_COLUMN_PT - height_pt) / 2 * 12700)))
+    pos_v.append(off_v)
+    anchor.append(pos_v)
+    ext = OxmlElement("wp:extent")
+    ext.set("cx", cx)
+    ext.set("cy", cy)
+    anchor.append(ext)
+    effect = OxmlElement("wp:effectExtent")
+    for side in ("l", "t", "r", "b"):
+        effect.set(side, "0")
+    anchor.append(effect)
+    wrap = OxmlElement("wp:wrapSquare")
+    wrap.set("wrapText", "bothSides")
+    anchor.append(wrap)
+    anchor.append(doc_pr)
+    c_nv = inline.find(qn("wp:cNvGraphicFramePr"))
+    if c_nv is not None:
+        anchor.append(c_nv)
+    anchor.append(graphic)
+    drawing.remove(inline)
+    drawing.append(anchor)
 
 
 def _place_picture_in_front(paragraph, image_path, width_inches):
@@ -681,36 +760,45 @@ def _tight_paragraph(doc, before=0, after=0):
     return p
 
 
-def add_compact_role(doc, item, before=2, logo_path=None, logo_height=None):
+def add_compact_role(doc, item, before=2, logo=None):
+    """logo is (png_path, width_pt, height_pt) or None."""
     head = _tight_paragraph(doc, before=before, after=0)
+    _indent_logo_column(head)
     title = head.add_run(format_resume_title(item["title"]))
     set_font(title, FF_DISPLAY, 11.5, INK, bold=False)
     dates = head.add_run(f", {format_resume_dates(item['dates'])}")
     set_font(dates, FF_DISPLAY, 11.5, INK_3, bold=False)
+    if logo:
+        _anchor_logo_in_column(head, *logo)
     meta = _tight_paragraph(doc, before=0, after=1)
+    _indent_logo_column(meta)
     org = meta.add_run(format_org_line(item["org"], item["city"]))
     set_font(org, FF_MONO, 8, INK_2)
-    if logo_path:
-        _add_inline_logo(meta, logo_path, logo_height or LOGO_HEIGHT_PT)
     bullets = item["resumeBullets"] if "resumeBullets" in item else item.get("bullets", [])
     for bullet in bullets:
         add_bullet(doc, plain_bullet(bullet), compact=True)
 
 
-def add_compact_gemmacon(doc, item, logo_path=None, logo_height=None):
-    """Three title lines, then one company line in the same style as other roles."""
+def add_compact_gemmacon(doc, item, logo=None):
+    """Three title lines, then one company line in the same style as other roles.
+
+    The mark uses the same 21.5 pt box as every other entry. It is not
+    stretched down the three titles.
+    """
     promotions = list(reversed(item.get("promotions") or []))
     for index, promo in enumerate(promotions):
         line = _tight_paragraph(doc, before=COMPACT_AFTER_HEADING if index == 0 else 0, after=0)
+        _indent_logo_column(line)
         title = line.add_run(format_resume_title(promo["title"]))
         set_font(title, FF_DISPLAY, 11.5, INK, bold=False)
         dates = line.add_run(f", {format_resume_dates(promo['dates'])}")
         set_font(dates, FF_DISPLAY, 11.5, INK_3, bold=False)
+        if index == 0 and logo:
+            _anchor_logo_in_column(line, *logo)
     meta = _tight_paragraph(doc, before=0, after=1)
+    _indent_logo_column(meta)
     org = meta.add_run(format_org_line(item["org"], item["city"]))
     set_font(org, FF_MONO, 8, INK_2)
-    if logo_path:
-        _add_inline_logo(meta, logo_path, logo_height or LOGO_HEIGHT_PT)
     bullets = item["resumeBullets"] if "resumeBullets" in item else item.get("bullets", [])
     for bullet in bullets:
         add_bullet(doc, plain_bullet(bullet), compact=True)
@@ -785,22 +873,22 @@ def add_compact_extras_strip(doc, extras):
             set_font(run, FF_BODY, 8, INK_2)
 
 
-def build_document(timeline, meta, compact=False, logos=False):
+def build_document(timeline, meta, compact=False, logos=None):
     doc = Document()
     logo_paths = {}
     skipped_logos = []
     logo_dir = None
-    if logos and compact:
+    # The one-page resume always carries the logo column. `logos` is accepted
+    # so older callers keep working; the long --full document does not.
+    if compact:
         logo_dir = Path(tempfile.mkdtemp(prefix="resume-logos-"))
         for item in timeline:
             src = _logo_source(item)
             if src is None:
                 skipped_logos.append(item.get("org") or "")
                 continue
-            logo_paths[id(item)] = (
-                _rasterize_logo(src, logo_dir / f"{src.stem}.png", LOGO_HEIGHT_PT),
-                LOGO_HEIGHT_PT,
-            )
+            width_pt, height_pt = _fit_logo(src, logo_dir / f"{src.stem}.png")
+            logo_paths[id(item)] = (logo_dir / f"{src.stem}.png", width_pt, height_pt)
 
     # Thin margins — tighter on the 1-pager so copy can breathe.
     for section in doc.sections:
@@ -912,17 +1000,15 @@ def build_document(timeline, meta, compact=False, logos=False):
             section_label(doc, "", "Education", compact=True)
             edu_headed = True
         if compact:
-            logo = logo_paths.get(id(item)) if logos else None
-            logo_path, logo_height = logo if logo else (None, None)
+            logo = logo_paths.get(id(item))
             if str(item.get("org", "")).startswith("GEMMACON") and item.get("promotions"):
-                add_compact_gemmacon(doc, item, logo_path=logo_path, logo_height=logo_height)
+                add_compact_gemmacon(doc, item, logo=logo)
             else:
                 add_compact_role(
                     doc,
                     item,
                     before=COMPACT_AFTER_HEADING if item.get("type") == "education" else COMPACT_ROLE_BEFORE,
-                    logo_path=logo_path,
-                    logo_height=logo_height,
+                    logo=logo,
                 )
             continue
         head = doc.add_paragraph()
@@ -1182,8 +1268,8 @@ def main(argv=None):
     output, compact, logos = resolve_resume_build(args)
     OUTPUT = output
     timeline, meta = load_data()
-    skipped = build_document(timeline, meta, compact=compact, logos=logos)
-    if logos:
+    skipped = build_document(timeline, meta, compact=compact)
+    if compact:
         present = [item.get("org") or "" for item in timeline if _logo_source(item)]
         print("Logos: " + "; ".join(present))
         if skipped:
