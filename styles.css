@@ -1411,7 +1411,7 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   text-decoration-color: currentColor;
 }
 
-/* Below this width the eyebrow, badge, and two buttons no longer fit
+/* Below this width the eyebrow, badge, and download button no longer fit
    on one row without sliding under the centered logo. Stack them
    and drop the row below the logo. Phones tighten this further. */
 @media (max-width: 960px) {
@@ -1445,7 +1445,7 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
     justify-content: flex-start;
     gap: 8px;
   }
-  /* Full-width pill above the two buttons. */
+  /* Full-width pill above the download button. */
   .chat-status {
     justify-content: center;
     width: 100%;
