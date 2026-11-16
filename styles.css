@@ -234,14 +234,16 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 /* Hero link to chat.efrain.me. Same pill shape as the buttons, a bit quieter.
    data-state is set by app.js: checking | up | down. */
 .chat-status {
+  --chat-pad-x: 14px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  /* Same 10px gap as the eyebrow, so the label lines up once the dots do. */
+  gap: 10px;
   font-family: var(--ff-mono);
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 10px 14px;
+  padding: 10px var(--chat-pad-x);
   border-radius: 999px;
   border: 1px solid var(--rule);
   color: var(--ink-2);
@@ -249,6 +251,10 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   white-space: nowrap;
   cursor: pointer;
   transition: border-color 200ms ease, color 200ms ease;
+  /* The eyebrow dot is flush with the column. This pill's border and
+     left padding would push its dot inward, so shift the pill back by
+     that amount and the two dots share one vertical line. */
+  margin-left: calc((var(--chat-pad-x) + 1px) * -1);
 }
 .chat-status:hover { border-color: var(--ink); color: var(--ink); }
 .chat-status:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -1443,6 +1449,7 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   .chat-status {
     justify-content: center;
     width: 100%;
+    margin-left: 0;
   }
   .btn-ghost, .btn-primary {
     text-align: center;
