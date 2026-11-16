@@ -1359,6 +1359,116 @@ function initBackToTop() {
   });
 }
 
+// Live badge in the hero: is chat.efrain.me answering?
+// GET /api/health returns {"status":"up",...} or {"status":"down"}.
+// Any failure (timeout, network, CORS, bad JSON) shows offline and
+// does not throw, so the rest of the page still loads.
+const CHAT_HEALTH_URL = 'https://chat.efrain.me/api/health';
+const CHAT_HOME_URL = 'https://chat.efrain.me';
+const CHAT_HEALTH_TIMEOUT_MS = 3000;
+const CHAT_HEALTH_INTERVAL_MS = 60000;
+
+function initChatStatus() {
+  const link = document.getElementById('chat-status');
+  if (!link) return;
+  const statusEl = link.querySelector('.chat-status-state');
+  if (!statusEl) return;
+
+  let pollTimer = 0;
+  // The request currently in flight, so a new check can cancel it.
+  let inFlight = null;
+  // After the first result, later polls keep the current label until
+  // the new one arrives. That avoids announcing "Checking…" every minute.
+  let hasResult = false;
+
+  // state is "checking", "up", or "down". Offline drops the href so the
+  // control cannot navigate, even from the keyboard.
+  function setState(state, label) {
+    link.dataset.state = state;
+    if (statusEl.textContent !== label) statusEl.textContent = label;
+    const offline = state === 'down';
+    if (offline) {
+      link.setAttribute('aria-disabled', 'true');
+      link.removeAttribute('href');
+      link.tabIndex = -1;
+    } else {
+      link.removeAttribute('aria-disabled');
+      link.setAttribute('href', CHAT_HOME_URL);
+      link.removeAttribute('tabindex');
+    }
+  }
+
+  async function check() {
+    if (inFlight) inFlight.abort();
+    const controller = new AbortController();
+    inFlight = controller;
+    const timeout = setTimeout(() => controller.abort(), CHAT_HEALTH_TIMEOUT_MS);
+    if (!hasResult) setState('checking', 'Checking…');
+    try {
+      const res = await fetch(CHAT_HEALTH_URL, {
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      // A newer check replaced this one; leave the badge alone.
+      if (inFlight !== controller) return;
+      if (!res.ok) {
+        setState('down', 'Offline right now');
+        return;
+      }
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (_) {
+        data = null;
+      }
+      if (inFlight !== controller) return;
+      if (data && data.status === 'up') setState('up', 'Online');
+      else setState('down', 'Offline right now');
+    } catch (_) {
+      // Timeout, network error, or CORS failure. Ignore it when this
+      // request was aborted because a newer check started.
+      if (inFlight !== controller) return;
+      setState('down', 'Offline right now');
+    } finally {
+      clearTimeout(timeout);
+      if (inFlight === controller) {
+        inFlight = null;
+        hasResult = true;
+      }
+    }
+  }
+
+  // Belt and suspenders: if href is gone, a click still must not navigate.
+  link.addEventListener('click', (event) => {
+    if (link.getAttribute('aria-disabled') === 'true' || !link.hasAttribute('href')) {
+      event.preventDefault();
+    }
+  });
+
+  function startPolling() {
+    clearInterval(pollTimer);
+    pollTimer = 0;
+    if (document.visibilityState !== 'visible') return;
+    pollTimer = setInterval(() => {
+      if (document.visibilityState === 'visible') check();
+    }, CHAT_HEALTH_INTERVAL_MS);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      check();
+      startPolling();
+    } else {
+      clearInterval(pollTimer);
+      pollTimer = 0;
+    }
+  });
+
+  setState('checking', 'Checking…');
+  check();
+  startPolling();
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   initThemeToggle();
   initBackToTop();
@@ -1366,6 +1476,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   initCareerGantt();
   initCardScrollLock();
   initLogoEasterEgg();
+  // Start the health check before the map data loads, so a slow
+  // GeoJSON fetch cannot block the badge.
+  initChatStatus();
   const [statesData, countiesData] = await Promise.all([
     fetch('us-states.geojson').then(r => r.json()),
     fetch('counties.geojson').then(r => r.json()).catch(() => null),

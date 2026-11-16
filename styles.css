@@ -9,6 +9,9 @@
 
   --accent: oklch(0.42 0.12 255);
   --accent-soft: oklch(0.42 0.12 255 / 0.12);
+  /* Green used only by the hero chat-status dot when the bot is up. */
+  --chat-online: #1c7c45;
+  --chat-online-soft: color-mix(in srgb, #1c7c45 22%, transparent);
 
   --map-fill: #e6e1d4;
   --map-fill-strong: #ccc6b4;
@@ -34,6 +37,8 @@
 
   --accent: oklch(0.68 0.14 255);
   --accent-soft: oklch(0.68 0.14 255 / 0.18);
+  --chat-online: #3dcc7a;
+  --chat-online-soft: color-mix(in srgb, #3dcc7a 28%, transparent);
 
   --map-fill: #201e1c;
   --map-fill-strong: #35322e;
@@ -202,8 +207,17 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 .hero-top {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 24px;
+}
+/* Eyebrow plus the chat badge. The badge stays on the left so the
+   fixed logo in the center of the page does not cover it. */
+.hero-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
 }
 .eyebrow {
   display: inline-flex; align-items: center; gap: 10px;
@@ -215,7 +229,72 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
-.hero-actions { display: flex; gap: 12px; }
+.hero-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+
+/* Hero link to chat.efrain.me. Same pill shape as the buttons, a bit quieter.
+   data-state is set by app.js: checking | up | down. */
+.chat-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  color: var(--ink-2);
+  background: transparent;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 200ms ease, color 200ms ease;
+}
+.chat-status:hover { border-color: var(--ink); color: var(--ink); }
+.chat-status:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Offline: not a link. JS also drops href and sets aria-disabled. */
+.chat-status[aria-disabled="true"] {
+  cursor: default;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.chat-status[aria-disabled="true"]:hover { border-color: var(--rule); color: var(--ink-3); }
+.chat-status-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+.chat-status-sep,
+.chat-status-state { color: var(--ink-3); }
+/* Neutral pulse while the health check is in flight. */
+.chat-status[data-state="checking"] .chat-status-dot {
+  animation: chat-status-pulse 1.6s ease-out infinite;
+}
+@keyframes chat-status-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ink-3) 45%, transparent); }
+  70% { box-shadow: 0 0 0 6px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+/* Green only when the API says status "up". */
+.chat-status[data-state="up"] .chat-status-dot {
+  background: var(--chat-online);
+  box-shadow: 0 0 0 3px var(--chat-online-soft);
+  animation: none;
+}
+.chat-status[data-state="up"] .chat-status-state { color: var(--chat-online); }
+/* Grey when the bot is down, timed out, or the check failed. */
+.chat-status[data-state="down"] .chat-status-dot {
+  background: var(--ink-4);
+  box-shadow: none;
+  animation: none;
+}
+/* The checking rule above is more specific, so name it again here.
+   Otherwise the pulse would keep running for people who asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .chat-status[data-state="checking"] .chat-status-dot { animation: none; }
+}
 .btn-ghost, .btn-primary {
   font-family: var(--ff-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
   padding: 12px 18px; border-radius: 999px; cursor: pointer;
@@ -1326,6 +1405,19 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   text-decoration-color: currentColor;
 }
 
+/* Below this width the eyebrow, badge, and two buttons no longer fit
+   on one row without sliding under the centered logo. Stack them
+   and drop the row below the logo. Phones tighten this further. */
+@media (max-width: 960px) {
+  .hero-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    margin-top: 64px;
+  }
+  .hero-actions { justify-content: flex-start; }
+}
+
 /* ============== MOBILE (hero row + footer) ============== */
 @media (max-width: 640px) {
   .hero {
@@ -1339,11 +1431,18 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
     flex-direction: column;
     align-items: stretch;
     gap: 18px;
+    margin-top: 0;
   }
+  .hero-intro { align-items: stretch; }
   .hero-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
+  }
+  /* Full-width pill above the two buttons. */
+  .chat-status {
+    justify-content: center;
+    width: 100%;
   }
   .btn-ghost, .btn-primary {
     text-align: center;
