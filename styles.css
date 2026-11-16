@@ -1441,8 +1441,8 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   }
   .hero-intro { align-items: stretch; }
   .hero-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    justify-content: flex-start;
     gap: 8px;
   }
   /* Full-width pill above the two buttons. */
