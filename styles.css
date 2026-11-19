@@ -63,6 +63,9 @@ html { transition: background 200ms ease, color 200ms ease; }
   align-items: center;
   justify-content: center;
   z-index: 99;
+  flex-shrink: 0;
+  min-width: 72px;
+  min-height: 72px;
   box-shadow: 0 8px 24px -10px rgba(0,0,0,0.25);
   transition: transform 200ms ease, box-shadow 200ms ease;
 }
@@ -70,11 +73,7 @@ html { transition: background 200ms ease, color 200ms ease; }
   transform: translateX(-50%) translateY(-1px);
   box-shadow: 0 12px 28px -10px rgba(0,0,0,0.3);
 }
-.floating-logo img { width: 58px; height: 58px; display: block; }
-@media (max-width: 640px) {
-  .floating-logo { width: 56px; height: 56px; top: 12px; }
-  .floating-logo img { width: 44px; height: 44px; }
-}
+.floating-logo img { width: 58px; height: 58px; flex-shrink: 0; display: block; }
 
 .tilt-prompt {
   position: fixed;
@@ -1411,17 +1410,44 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   text-decoration-color: currentColor;
 }
 
-/* Below this width the eyebrow, badge, and download button no longer fit
-   on one row without sliding under the centered logo. Stack them
-   and drop the row below the logo. Phones tighten this further. */
-@media (max-width: 960px) {
+/* The status pill and download button share the top row with the logo
+   until the longest pill would meet it, near 660px. Below that they drop
+   under the portrait and sit side by side, filling the width. */
+@media (max-width: 680px) {
   .hero-top {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 12px;
+    row-gap: 14px;
     align-items: stretch;
-    gap: 14px;
-    margin-top: 64px;
+    margin-top: 72px;
   }
-  .hero-actions { justify-content: flex-start; }
+  .hero-intro { display: contents; }
+  .eyebrow { grid-column: 1 / -1; }
+  .chat-status {
+    margin-left: 0;
+    min-width: 0;
+    height: 100%;
+    justify-content: center;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .chat-status > span { flex-shrink: 0; }
+  .chat-status > .chat-status-state {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hero-actions { min-width: 0; }
+  .hero-actions .btn-primary {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    justify-content: center;
+    overflow: hidden;
+    white-space: nowrap;
+  }
 }
 
 /* ============== MOBILE (hero row + footer) ============== */
@@ -1430,26 +1456,18 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
     min-height: 0;
     justify-content: flex-start;
     gap: 40px;
-    padding-top: 88px;
+    padding-top: 104px;
     padding-bottom: 40px;
   }
   .hero-top {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 18px;
+    column-gap: 8px;
     margin-top: 0;
   }
-  .hero-intro { align-items: stretch; }
-  .hero-actions {
-    display: flex;
-    justify-content: flex-start;
-    gap: 8px;
-  }
-  /* Full-width pill above the download button. */
   .chat-status {
-    justify-content: center;
-    width: 100%;
-    margin-left: 0;
+    gap: 6px;
+    padding: 10px 10px;
+    font-size: 10px;
+    letter-spacing: 0.04em;
   }
   .btn-ghost, .btn-primary {
     text-align: center;
@@ -1491,6 +1509,27 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
     font-size: clamp(18px, 5vw, 26px);
     overflow-wrap: anywhere;
   }
+}
+
+/* The offline status label stops fitting beside Download resume near 530px.
+   Stack them, with the download button above Ask my AI. */
+@media (max-width: 540px) {
+  .hero-top {
+    grid-template-columns: 1fr;
+    row-gap: 10px;
+  }
+  .hero-actions { grid-column: 1; grid-row: 2; }
+  .chat-status,
+  .hero-actions .btn-primary {
+    box-sizing: border-box;
+    width: 100%;
+    height: 44px;
+    padding: 0 16px;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    line-height: 1;
+  }
+  .chat-status { grid-column: 1; grid-row: 3; gap: 8px; }
 }
 
 /* ============== MOBILE (experience section) ============== */
