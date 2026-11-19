@@ -9,6 +9,9 @@
 
   --accent: oklch(0.42 0.12 255);
   --accent-soft: oklch(0.42 0.12 255 / 0.12);
+  /* Green used only by the hero chat-status dot when the bot is up. */
+  --chat-online: #1c7c45;
+  --chat-online-soft: color-mix(in srgb, #1c7c45 22%, transparent);
 
   --map-fill: #e6e1d4;
   --map-fill-strong: #ccc6b4;
@@ -34,6 +37,8 @@
 
   --accent: oklch(0.68 0.14 255);
   --accent-soft: oklch(0.68 0.14 255 / 0.18);
+  --chat-online: #3dcc7a;
+  --chat-online-soft: color-mix(in srgb, #3dcc7a 28%, transparent);
 
   --map-fill: #201e1c;
   --map-fill-strong: #35322e;
@@ -58,6 +63,9 @@ html { transition: background 200ms ease, color 200ms ease; }
   align-items: center;
   justify-content: center;
   z-index: 99;
+  flex-shrink: 0;
+  min-width: 72px;
+  min-height: 72px;
   box-shadow: 0 8px 24px -10px rgba(0,0,0,0.25);
   transition: transform 200ms ease, box-shadow 200ms ease;
 }
@@ -65,11 +73,7 @@ html { transition: background 200ms ease, color 200ms ease; }
   transform: translateX(-50%) translateY(-1px);
   box-shadow: 0 12px 28px -10px rgba(0,0,0,0.3);
 }
-.floating-logo img { width: 58px; height: 58px; display: block; }
-@media (max-width: 640px) {
-  .floating-logo { width: 56px; height: 56px; top: 12px; }
-  .floating-logo img { width: 44px; height: 44px; }
-}
+.floating-logo img { width: 58px; height: 58px; flex-shrink: 0; display: block; }
 
 .tilt-prompt {
   position: fixed;
@@ -202,8 +206,17 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 .hero-top {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 24px;
+}
+/* Eyebrow plus the chat badge. The badge stays on the left so the
+   fixed logo in the center of the page does not cover it. */
+.hero-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
 }
 .eyebrow {
   display: inline-flex; align-items: center; gap: 10px;
@@ -215,7 +228,78 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
-.hero-actions { display: flex; gap: 12px; }
+.hero-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+
+/* Hero link to chat.efrain.me. Same pill shape as the buttons, a bit quieter.
+   data-state is set by app.js: checking | up | down. */
+.chat-status {
+  --chat-pad-x: 14px;
+  display: inline-flex;
+  align-items: center;
+  /* Same 10px gap as the eyebrow, so the label lines up once the dots do. */
+  gap: 10px;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 10px var(--chat-pad-x);
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  color: var(--ink-2);
+  background: transparent;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 200ms ease, color 200ms ease;
+  /* The eyebrow dot is flush with the column. This pill's border and
+     left padding would push its dot inward, so shift the pill back by
+     that amount and the two dots share one vertical line. */
+  margin-left: calc((var(--chat-pad-x) + 1px) * -1);
+}
+.chat-status:hover { border-color: var(--ink); color: var(--ink); }
+.chat-status:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Offline: not a link. JS also drops href and sets aria-disabled. */
+.chat-status[aria-disabled="true"] {
+  cursor: default;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.chat-status[aria-disabled="true"]:hover { border-color: var(--rule); color: var(--ink-3); }
+.chat-status-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+.chat-status-sep,
+.chat-status-state { color: var(--ink-3); }
+/* Neutral pulse while the health check is in flight. */
+.chat-status[data-state="checking"] .chat-status-dot {
+  animation: chat-status-pulse 1.6s ease-out infinite;
+}
+@keyframes chat-status-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ink-3) 45%, transparent); }
+  70% { box-shadow: 0 0 0 6px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+/* Green only when the API says status "up". */
+.chat-status[data-state="up"] .chat-status-dot {
+  background: var(--chat-online);
+  box-shadow: 0 0 0 3px var(--chat-online-soft);
+  animation: none;
+}
+.chat-status[data-state="up"] .chat-status-state { color: var(--chat-online); }
+/* Grey when the bot is down, timed out, or the check failed. */
+.chat-status[data-state="down"] .chat-status-dot {
+  background: var(--ink-4);
+  box-shadow: none;
+  animation: none;
+}
+/* The checking rule above is more specific, so name it again here.
+   Otherwise the pulse would keep running for people who asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .chat-status[data-state="checking"] .chat-status-dot { animation: none; }
+}
 .btn-ghost, .btn-primary {
   font-family: var(--ff-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
   padding: 12px 18px; border-radius: 999px; cursor: pointer;
@@ -1326,24 +1410,64 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   text-decoration-color: currentColor;
 }
 
+/* The status pill and download button share the top row with the logo
+   until the longest pill would meet it, near 660px. Below that they drop
+   under the portrait and sit side by side, filling the width. */
+@media (max-width: 680px) {
+  .hero-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 12px;
+    row-gap: 14px;
+    align-items: stretch;
+    margin-top: 72px;
+  }
+  .hero-intro { display: contents; }
+  .eyebrow { grid-column: 1 / -1; }
+  .chat-status {
+    margin-left: 0;
+    min-width: 0;
+    height: 100%;
+    justify-content: center;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .chat-status > span { flex-shrink: 0; }
+  .chat-status > .chat-status-state {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hero-actions { min-width: 0; }
+  .hero-actions .btn-primary {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    justify-content: center;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+}
+
 /* ============== MOBILE (hero row + footer) ============== */
 @media (max-width: 640px) {
   .hero {
     min-height: 0;
     justify-content: flex-start;
     gap: 40px;
-    padding-top: 88px;
+    padding-top: 104px;
     padding-bottom: 40px;
   }
   .hero-top {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 18px;
+    column-gap: 8px;
+    margin-top: 0;
   }
-  .hero-actions {
-    display: flex;
-    justify-content: flex-start;
-    gap: 8px;
+  .chat-status {
+    gap: 6px;
+    padding: 10px 10px;
+    font-size: 10px;
+    letter-spacing: 0.04em;
   }
   .btn-ghost, .btn-primary {
     text-align: center;
@@ -1385,6 +1509,27 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
     font-size: clamp(18px, 5vw, 26px);
     overflow-wrap: anywhere;
   }
+}
+
+/* The offline status label stops fitting beside Download resume near 530px.
+   Stack them, with the download button above Ask my AI. */
+@media (max-width: 540px) {
+  .hero-top {
+    grid-template-columns: 1fr;
+    row-gap: 10px;
+  }
+  .hero-actions { grid-column: 1; grid-row: 2; }
+  .chat-status,
+  .hero-actions .btn-primary {
+    box-sizing: border-box;
+    width: 100%;
+    height: 44px;
+    padding: 0 16px;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    line-height: 1;
+  }
+  .chat-status { grid-column: 1; grid-row: 3; gap: 8px; }
 }
 
 /* ============== MOBILE (experience section) ============== */

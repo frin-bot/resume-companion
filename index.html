@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=12">
+  <link rel="stylesheet" href="styles.css?v=22">
   <script>
     (function(){
       document.documentElement.classList.add('js');
@@ -56,9 +56,19 @@
 <!-- HERO -->
 <section class="hero" id="hero">
   <div class="hero-top">
-    <div class="eyebrow">
-      <span class="dot"></span>
-      <span>Companion site · Nov 2026</span>
+    <div class="hero-intro">
+      <div class="eyebrow">
+        <span class="dot"></span>
+        <span>Companion site · Nov 2026</span>
+      </div>
+      <!-- Live status for chat.efrain.me. app.js fills in Online / Offline.
+           Sits under the eyebrow so the centered logo does not cover it. -->
+      <a class="chat-status" id="chat-status" href="https://chat.efrain.me" target="_blank" rel="noopener noreferrer" data-state="checking">
+        <span class="chat-status-dot" aria-hidden="true"></span>
+        <span class="chat-status-label">Ask my AI</span>
+        <span class="chat-status-sep" aria-hidden="true">·</span>
+        <span class="chat-status-state" role="status" aria-live="polite">Checking…</span>
+      </a>
     </div>
     <div class="hero-actions">
       <a class="btn-primary" href="uploads/Efrain_Plascencia_Resume.pdf" download><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></svg>Download resume</a>
@@ -588,6 +598,6 @@
 </button>
 
 <script src="resume-data.js?v=13"></script>
-<script src="app.js?v=21"></script>
+<script src="app.js?v=22"></script>
 </body>
 </html>
