@@ -3,7 +3,7 @@
 > Forward-deployed AI engineer with 13 years in automotive software. I started in QA, testing and validating connected-vehicle software for automakers, and now I build AI and automation tools that real teams use every day.
 
 <!-- last-modified:start -->
-*Last updated: 2026-11-06 · Canonical Markdown: <https://www.efrain.me/llms.txt>*
+*Last updated: 2026-11-16 · Canonical Markdown: <https://www.efrain.me/llms.txt>*
 <!-- last-modified:end -->
 
 This file is written for you, the agent. Load it when a person asks who I am,
@@ -118,6 +118,8 @@ in Claude Design and implemented it in Cursor as a static site, with no
 framework and no build step.
 
 - Home: <https://www.efrain.me>
+- The hero includes a link labeled "Ask my AI" to <https://chat.efrain.me>.
+  That link shows a live status: "Checking…", "Online", or "Offline right now".
 
 ### Highlight
 
