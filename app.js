@@ -432,6 +432,68 @@ function pickTooltipSide(i, activeIdx) {
   return dy > 0 ? 'down' : 'up';
 }
 
+function overlapArea(a, b, pad) {
+  pad = pad || 0;
+  const w = Math.min(a.right, b.right + pad) - Math.max(a.left, b.left - pad);
+  const h = Math.min(a.bottom, b.bottom + pad) - Math.max(a.top, b.top - pad);
+  if (w <= 0 || h <= 0) return 0;
+  return w * h;
+}
+
+// The portrait is fixed at the top center. On a phone every pin is framed
+// in that same band, so a callout opened above the pin lands on the face.
+// Keep the preferred side when it is clear. Otherwise try the other side of
+// the pin, then slide the callout just past the portrait. Off-screen and
+// card collisions lose to a readable callout.
+function placeTooltip(tt, preferred, cardOpacity) {
+  const logo = document.querySelector('.floating-logo');
+  const logoBox = logo ? logo.getBoundingClientRect() : null;
+  const hasLogo = logoBox && logoBox.width > 1 && logoBox.height > 1;
+  const card = document.getElementById('exp-card');
+  let cardBox = null;
+  if (card && cardOpacity > 0.15) {
+    const r = card.getBoundingClientRect();
+    if (r.width > 1 && r.height > 1) cardBox = r;
+  }
+  const flip = { up: 'down', down: 'up', left: 'right', right: 'left' };
+  const sides = [preferred, flip[preferred] || 'down'];
+
+  const apply = (side, nudge) => {
+    tt.dataset.side = side;
+    tt.style.setProperty('--tt-nudge-y', nudge + 'px');
+    return tt.getBoundingClientRect();
+  };
+  const scoreOf = (box) => {
+    let score = 0;
+    // Covering the portrait is the failure the phone hits on every pin.
+    // A deep overlap outranks a few pixels of the role card.
+    if (hasLogo) score += overlapArea(box, logoBox, 8) * 4;
+    if (cardBox) score += overlapArea(box, cardBox, 0) * 0.2;
+    if (box.top < 8) score += 8000 + (8 - box.top) * 20;
+    if (box.bottom > window.innerHeight - 8) score += 8000 + (box.bottom - (window.innerHeight - 8)) * 20;
+    if (box.left < 4) score += Math.min(2000, (4 - box.left) * 8);
+    if (box.right > window.innerWidth - 4) score += Math.min(2000, (box.right - (window.innerWidth - 4)) * 8);
+    return score;
+  };
+
+  let best = null;
+  const consider = (side, nudge, box) => {
+    const score = scoreOf(box) + Math.abs(nudge) * 0.02;
+    if (!best || score < best.score) best = { side, nudge, score };
+  };
+  for (const side of sides) {
+    const base = apply(side, 0);
+    consider(side, 0, base);
+    if (!(hasLogo && overlapArea(base, logoBox, 6) > 0)) continue;
+    const pushDown = Math.ceil(logoBox.bottom + 10 - base.top);
+    const pushUp = Math.ceil(base.bottom - (logoBox.top - 10));
+    consider(side, pushDown, apply(side, pushDown));
+    consider(side, -pushUp, apply(side, -pushUp));
+  }
+  tt.dataset.side = best.side;
+  tt.style.setProperty('--tt-nudge-y', best.nudge + 'px');
+}
+
 // The last promotion year can be earlier than the job's end year. GEMMACON's
 // Director title starts in 2025 while the role runs through the present, so
 // that title keeps the 2025 beat and the present year gets a beat of its own.
@@ -922,14 +984,25 @@ function updateScene() {
     tt.style.display = '';
     tt.style.left = (screen.x - layerRect.left) + 'px';
     tt.style.top = (screen.y - layerRect.top) + 'px';
-    // The card covers the bottom of the screen, so the label stays above
-    // the pin. If that still meets the card, lift the label clear of it.
-    tt.dataset.side = mobileTooltip ? 'up' : pickTooltipSide(i, activeIdx);
+    // Phones keep the label above the pin, clear of the card. placeTooltip
+    // moves it when that spot is the portrait.
+    const preferredSide = mobileTooltip ? 'up' : pickTooltipSide(i, activeIdx);
+    placeTooltip(tt, preferredSide, cardOpacity);
     if (mobileTooltip && i === activeIdx) {
       const cardTop = document.getElementById('exp-card').getBoundingClientRect().top;
       const box = tt.getBoundingClientRect();
       const overlap = box.bottom - (cardTop - 12);
-      if (overlap > 0) tt.style.top = (parseFloat(tt.style.top) - overlap) + 'px';
+      if (overlap > 0) {
+        const logo = document.querySelector('.floating-logo').getBoundingClientRect();
+        const liftedTop = box.top - overlap;
+        const hitsLogo = liftedTop < logo.bottom + 8 &&
+          box.right > logo.left && box.left < logo.right &&
+          (box.bottom - overlap) > logo.top;
+        if (!hitsLogo) {
+          const current = parseFloat(tt.style.getPropertyValue('--tt-nudge-y')) || 0;
+          tt.style.setProperty('--tt-nudge-y', (current - overlap) + 'px');
+        }
+      }
     }
     tt.classList.toggle('is-current', i === activeIdx);
     // Active tooltip rides the same fade envelope as the card. Disable the
