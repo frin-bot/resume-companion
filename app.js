@@ -1145,7 +1145,8 @@ function initLogoEasterEgg() {
 
   function captureObstacles() {
     obstacles = [];
-    const selectors = ['#theme-toggle', '#back-to-top', '#tilt-prompt'];
+    // The ask chip is wide and sits on the same floor line as the other controls.
+    const selectors = ['#theme-toggle', '#back-to-top', '#tilt-prompt', '#ask-launcher'];
     for (const sel of selectors) {
       const el = document.querySelector(sel);
       if (!el || el.hidden) continue;
@@ -1164,7 +1165,6 @@ function initLogoEasterEgg() {
   function startAnim(reset) {
     if (running) return;
     computeBounds();
-    captureObstacles();
     if (reset) { x = 0; y = 0; vx = 0; vy = 0; angle = 0; firstFloorHit = true; }
     running = true;
     // Only show the shocked face on a fresh fall. When the loop resumes due to
@@ -1176,6 +1176,8 @@ function initLogoEasterEgg() {
       if (!running) return;
       const dt = Math.min((now - last) / 1000, 0.032);
       last = now;
+      // The ask label changes width when the health check resolves.
+      captureObstacles();
 
       // Gravity, tilted if we have orientation input.
       let ax = 0, ay = GRAVITY;
@@ -1215,36 +1217,54 @@ function initLogoEasterEgg() {
       if (x < leftWall) { x = leftWall; vx = Math.abs(vx) * WALL_DAMP; }
       else if (x > rightWall) { x = rightWall; vx = -Math.abs(vx) * WALL_DAMP; }
 
-      // Obstacle collisions (floating buttons). Circle-vs-rect: find closest
-      // point on the obstacle rect to the icon center, and if the gap is
-      // smaller than the icon radius, push out along the normal and reflect.
+      // Obstacle collisions (floating buttons, including the ask chip).
+      // Circle-vs-rect: find the closest point on the obstacle to the icon
+      // center. If the gap is smaller than the icon radius, push out along
+      // the normal and reflect. The ask chip is wide enough that a fast roll
+      // can put the center inside it; then the nearest edge is the way out.
+      let supported = false;
       if (obstacles.length) {
-        const cx = baseCx + x;
-        const cy = baseCy + y;
         for (const obs of obstacles) {
+          const cx = baseCx + x;
+          const cy = baseCy + y;
           const px = Math.max(obs.left, Math.min(cx, obs.right));
           const py = Math.max(obs.top, Math.min(cy, obs.bottom));
           const dx = cx - px;
           const dy = cy - py;
           const dist = Math.hypot(dx, dy);
+          let nx = 0;
+          let ny = 0;
+          let overlap = 0;
           if (dist < iconRadius && dist > 0.001) {
-            const overlap = iconRadius - dist;
-            const nx = dx / dist;
-            const ny = dy / dist;
-            x += nx * overlap;
-            y += ny * overlap;
-            const vDotN = vx * nx + vy * ny;
-            if (vDotN < 0) {
-              const j = (1 + 0.55) * vDotN;
-              vx -= j * nx;
-              vy -= j * ny;
-            }
+            overlap = iconRadius - dist;
+            nx = dx / dist;
+            ny = dy / dist;
+          } else if (dist <= 0.001) {
+            const leftPen = cx - obs.left;
+            const rightPen = obs.right - cx;
+            const topPen = cy - obs.top;
+            const botPen = obs.bottom - cy;
+            const min = Math.min(leftPen, rightPen, topPen, botPen);
+            if (min === topPen) { nx = 0; ny = -1; overlap = iconRadius + topPen; }
+            else if (min === botPen) { nx = 0; ny = 1; overlap = iconRadius + botPen; }
+            else if (min === leftPen) { nx = -1; ny = 0; overlap = iconRadius + leftPen; }
+            else { nx = 1; ny = 0; overlap = iconRadius + rightPen; }
+          }
+          if (!overlap) continue;
+          x += nx * overlap;
+          y += ny * overlap;
+          if (ny < -0.5) supported = true;
+          const vDotN = vx * nx + vy * ny;
+          if (vDotN < 0) {
+            const j = (1 + 0.55) * vDotN;
+            vx -= j * nx;
+            vy -= j * ny;
           }
         }
       }
 
-      // Floor friction
-      if (y >= floor - 0.5 && Math.abs(vy) < 50) {
+      // Friction on the floor, and on top of a button the icon has landed on.
+      if ((y >= floor - 0.5 || supported) && Math.abs(vy) < 80) {
         vx *= Math.pow(FRICTION_PER_SEC, dt);
       }
 
@@ -1254,11 +1274,12 @@ function initLogoEasterEgg() {
 
       applyTransform();
 
-      // Stop when fully settled and no tilt input is driving motion
-      const settled = y >= floor - 0.3 && Math.abs(vy) < STOP_VY && Math.abs(vx) < STOP_VX;
+      // Stop when fully settled and no tilt input is driving motion.
+      // Resting on the ask chip counts: the chip can block the floor.
+      const resting = Math.abs(vy) < STOP_VY && Math.abs(vx) < STOP_VX;
       const tiltIdle = !tiltActive || Math.abs(gamma) < 3;
-      if (settled && tiltIdle) {
-        y = floor;
+      if (resting && tiltIdle && (y >= floor - 0.3 || supported)) {
+        if (y >= floor - 0.3) y = floor;
         applyTransform();
         setFace(FACE_SLEEP);
         running = false;
@@ -1382,8 +1403,8 @@ function initChatStatus() {
   let hasResult = false;
 
   // state is "checking", "up", or "down". Offline drops the href so the
-  // control cannot navigate, even from the keyboard. The floating widget
-  // reads the same state and refuses to send while it is not "up".
+  // control cannot navigate, even from the keyboard. The floating link
+  // uses the same state.
   function setState(state, label) {
     link.dataset.state = state;
     if (statusEl.textContent !== label) statusEl.textContent = label;
@@ -1446,6 +1467,14 @@ function initChatStatus() {
       event.preventDefault();
     }
   });
+  const askLink = document.getElementById('ask-launcher');
+  if (askLink) {
+    askLink.addEventListener('click', (event) => {
+      if (askLink.getAttribute('aria-disabled') === 'true' || !askLink.hasAttribute('href')) {
+        event.preventDefault();
+      }
+    });
+  }
 
   function startPolling() {
     clearInterval(pollTimer);
@@ -1469,137 +1498,25 @@ function initChatStatus() {
   setState('checking', 'Checking…');
   check();
   startPolling();
-  runHealthCheck = check;
 }
 
-// Latest health result, shared with the floating ask panel.
-let askState = 'checking';
-let askBusy = false;
-let runHealthCheck = () => {};
-
+// The corner chip is a second link to the same chat site.
 function syncAskWidget(state, label) {
-  askState = state;
-  const widget = document.getElementById('ask-widget');
-  if (!widget) return;
-  widget.dataset.state = state;
-  widget.querySelectorAll('.ask-state').forEach((el) => {
-    if (el.textContent !== label) el.textContent = label;
-  });
-  const input = document.getElementById('ask-input');
-  const send = document.getElementById('ask-send');
-  const locked = state !== 'up' || askBusy;
-  if (input) input.disabled = locked;
-  if (send) send.disabled = locked;
-  widget.querySelectorAll('.ask-prompt').forEach((button) => {
-    button.disabled = state !== 'up';
-  });
-}
-
-// Opens a short chat in the corner. Questions go to chat.efrain.me.
-// The panel stays usable when the health check is down, but the field
-// is replaced by the offline note and nothing is posted.
-function initAskWidget() {
-  const widget = document.getElementById('ask-widget');
-  const launcher = document.getElementById('ask-launcher');
-  const panel = document.getElementById('ask-panel');
-  const closeBtn = document.getElementById('ask-close');
-  const form = document.getElementById('ask-form');
-  const input = document.getElementById('ask-input');
-  const log = document.getElementById('ask-log');
-  const retry = document.getElementById('ask-retry');
-  if (!widget || !launcher || !panel || !form || !input || !log) return;
-
-  const history = [];
-  const CHAT_URL = 'https://chat.efrain.me/api/chat';
-
-  function setOpen(open) {
-    panel.hidden = !open;
-    launcher.hidden = open;
-    launcher.setAttribute('aria-expanded', open ? 'true' : 'false');
-    document.body.classList.toggle('ask-open', open);
-    if (!open) {
-      launcher.focus();
-      return;
-    }
-    if (askState === 'up') input.focus();
-    else if (closeBtn) closeBtn.focus();
+  const link = document.getElementById('ask-launcher');
+  if (!link) return;
+  link.dataset.state = state;
+  const statusEl = link.querySelector('.ask-state');
+  if (statusEl && statusEl.textContent !== label) statusEl.textContent = label;
+  const offline = state === 'down';
+  if (offline) {
+    link.setAttribute('aria-disabled', 'true');
+    link.removeAttribute('href');
+    link.tabIndex = -1;
+  } else {
+    link.removeAttribute('aria-disabled');
+    link.setAttribute('href', CHAT_HOME_URL);
+    link.removeAttribute('tabindex');
   }
-
-  function addMessage(kind, text) {
-    const p = document.createElement('p');
-    p.className = kind === 'user' ? 'ask-msg ask-msg-user' : 'ask-msg ask-msg-bot';
-    p.textContent = text;
-    log.appendChild(p);
-    log.scrollTop = log.scrollHeight;
-    return p;
-  }
-
-  async function ask(question) {
-    const q = question.trim();
-    if (!q || askBusy || askState !== 'up') return;
-    askBusy = true;
-    syncAskWidget(askState, widget.querySelector('.ask-state').textContent);
-    input.value = '';
-    addMessage('user', q);
-    const reply = addMessage('bot', '');
-    let full = '';
-    try {
-      const res = await fetch(CHAT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
-        body: JSON.stringify({ message: q, history }),
-      });
-      if (!res.ok || !res.body) throw new Error('chat');
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      while (true) {
-        const step = await reader.read();
-        if (step.done) break;
-        buffer += decoder.decode(step.value, { stream: true });
-        const chunks = buffer.split('\n\n');
-        buffer = chunks.pop() || '';
-        for (const chunk of chunks) {
-          const line = chunk.split('\n').find((item) => item.startsWith('data: '));
-          if (!line) continue;
-          let data = null;
-          try { data = JSON.parse(line.slice(6)); } catch (_) { data = null; }
-          if (!data) continue;
-          if (data.token) {
-            full += data.token;
-            reply.textContent = full;
-            log.scrollTop = log.scrollHeight;
-          }
-        }
-      }
-      if (!full) throw new Error('empty');
-      history.push({ role: 'user', content: q }, { role: 'assistant', content: full });
-    } catch (_) {
-      reply.textContent = full
-        ? full
-        : 'The assistant didn’t answer. Try again in a moment.';
-    } finally {
-      askBusy = false;
-      syncAskWidget(askState, widget.querySelector('.ask-state').textContent);
-    }
-  }
-
-  launcher.addEventListener('click', () => setOpen(true));
-  if (closeBtn) closeBtn.addEventListener('click', () => setOpen(false));
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !panel.hidden) setOpen(false);
-  });
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    ask(input.value);
-  });
-  widget.querySelectorAll('.ask-prompt').forEach((button) => {
-    button.addEventListener('click', () => {
-      const text = button.querySelector('.ask-prompt-t');
-      if (text) ask(text.textContent);
-    });
-  });
-  if (retry) retry.addEventListener('click', () => runHealthCheck());
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1612,7 +1529,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Start the health check before the map data loads, so a slow
   // GeoJSON fetch cannot block the badge.
   initChatStatus();
-  initAskWidget();
   const [statesData, countiesData] = await Promise.all([
     fetch('us-states.geojson').then(r => r.json()),
     fetch('counties.geojson').then(r => r.json()).catch(() => null),
