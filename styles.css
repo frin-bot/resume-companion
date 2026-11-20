@@ -75,16 +75,19 @@ html { transition: background 200ms ease, color 200ms ease; }
 }
 .floating-logo img { width: 58px; height: 58px; flex-shrink: 0; display: block; }
 
-/* Drops in from above the logo, then slides back up when dismissed. */
+/* Rises from below the screen and rests centered, clear of the ask chip and theme controls. */
 .tilt-prompt {
   position: fixed;
-  top: 96px;
   left: 50%;
+  bottom: 80px;
   z-index: 120;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 10px 18px 10px 14px;
+  max-width: calc(100vw - 32px);
+  height: 48px;
+  padding: 0 18px 0 14px;
   background: var(--ink);
   color: var(--bg);
   border: none;
@@ -96,25 +99,19 @@ html { transition: background 200ms ease, color 200ms ease; }
   white-space: nowrap;
   cursor: pointer;
   box-shadow: 0 8px 24px -8px rgba(0,0,0,0.35);
-  transform: translate(-50%, calc(-100% - 120px));
-  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateX(-50%) translateY(calc(100% + 120px));
+  transition: transform 900ms cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: none;
 }
 .tilt-prompt.is-shown {
-  transform: translate(-50%, 0);
+  transform: translateX(-50%) translateY(0);
   pointer-events: auto;
 }
 .tilt-prompt[hidden] { display: none; }
 .tilt-prompt-icon { display: flex; }
 .tilt-prompt-icon svg { width: 18px; height: 18px; display: block; }
-/* While the pill is on screen, drop the hero row so it is not covered. */
-body.tilt-prompt-open .hero {
-  padding-top: 156px;
-  transition: padding-top 420ms cubic-bezier(0.22, 1, 0.36, 1);
-}
 @media (prefers-reduced-motion: reduce) {
-  .tilt-prompt,
-  body.tilt-prompt-open .hero { transition: none; }
+  .tilt-prompt { transition: none; }
 }
 
 .theme-toggle,

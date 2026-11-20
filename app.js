@@ -1208,7 +1208,9 @@ function initThemeToggle() {
   function applyTheme(next) {
     if (next === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
     else document.documentElement.removeAttribute('data-theme');
-    try { localStorage.setItem('theme', next); } catch (_) {}
+    // Head script writes the shared cookie and localStorage. Fall back if it did not run.
+    if (window.__persistTheme) window.__persistTheme(next);
+    else try { localStorage.setItem('theme', next); } catch (_) {}
   }
 
   btn.addEventListener('click', () => {
@@ -1362,16 +1364,18 @@ function initLogoEasterEgg() {
       dismissed = true;
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('pointerdown', onPointerDown);
-      document.body.classList.remove('tilt-prompt-open');
       prompt.classList.remove('is-shown');
+      let hidden = false;
       const hide = (event) => {
+        if (hidden) return;
         if (event && event.propertyName && event.propertyName !== 'transform') return;
+        hidden = true;
         prompt.hidden = true;
         prompt.removeEventListener('transitionend', hide);
       };
       prompt.addEventListener('transitionend', hide);
-      // Covers browsers that skip the transition, including reduced motion.
-      setTimeout(hide, 500);
+      const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      setTimeout(hide, reduceMotion ? 0 : 1100);
     };
 
     const originY = window.scrollY;
@@ -1386,7 +1390,6 @@ function initLogoEasterEgg() {
     };
 
     prompt.hidden = false;
-    document.body.classList.add('tilt-prompt-open');
     requestAnimationFrame(() => {
       requestAnimationFrame(() => prompt.classList.add('is-shown'));
     });
