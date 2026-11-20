@@ -29,11 +29,49 @@
   <script>
     (function(){
       document.documentElement.classList.add('js');
-      try {
-        var stored = localStorage.getItem('theme');
-        var dark = stored ? stored === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-        if (dark) document.documentElement.setAttribute('data-theme', 'dark');
-      } catch (_) {}
+      // The theme cookie is shared with chat.efrain.me. localStorage stays as the fallback.
+      function readCookie() {
+        var found = null;
+        var parts = (document.cookie || '').split(';');
+        for (var i = 0; i < parts.length; i++) {
+          var part = parts[i].replace(/^\s+/, '');
+          if (part.indexOf('theme=') !== 0) continue;
+          var value = part.slice(6);
+          if (value === 'dark' || value === 'light') found = value;
+        }
+        return found;
+      }
+      function readStorage() {
+        try {
+          var value = localStorage.getItem('theme');
+          if (value === 'dark' || value === 'light') return value;
+        } catch (_) {}
+        return null;
+      }
+      function writeTheme(next) {
+        var host = location.hostname;
+        var domain = '';
+        if (host === 'efrain.me' || host.endsWith('.efrain.me')) domain = '; Domain=.efrain.me';
+        else if (host === 'frin.bot' || host.endsWith('.frin.bot')) domain = '; Domain=.frin.bot';
+        var secure = location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = 'theme=' + next + '; Path=/; Max-Age=31536000; SameSite=Lax' + domain + secure;
+        try { localStorage.setItem('theme', next); } catch (_) {}
+      }
+      function paint(mode) {
+        if (mode === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        else document.documentElement.removeAttribute('data-theme');
+      }
+      function sync() {
+        var saved = readCookie() || readStorage();
+        var mode = saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        paint(mode);
+        if (saved) writeTheme(saved);
+      }
+      // The theme button in app.js stores through this, so both places write the same cookie.
+      window.__persistTheme = writeTheme;
+      sync();
+      // Back/forward can restore this page after chat.efrain.me changed the cookie.
+      window.addEventListener('pageshow', sync);
     })();
   </script>
 </head>

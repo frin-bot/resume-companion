@@ -1208,7 +1208,9 @@ function initThemeToggle() {
   function applyTheme(next) {
     if (next === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
     else document.documentElement.removeAttribute('data-theme');
-    try { localStorage.setItem('theme', next); } catch (_) {}
+    // Head script writes the shared cookie and localStorage. Fall back if it did not run.
+    if (window.__persistTheme) window.__persistTheme(next);
+    else try { localStorage.setItem('theme', next); } catch (_) {}
   }
 
   btn.addEventListener('click', () => {
