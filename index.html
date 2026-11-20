@@ -3,6 +3,99 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f4f1ea" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121010" media="(prefers-color-scheme: dark)">
+  <script>
+    (function () {
+      var COLORS = { light: '#f4f1ea', dark: '#121010' };
+      function readCookie() {
+        var found = null;
+        var parts = (document.cookie || '').split(';');
+        for (var i = 0; i < parts.length; i++) {
+          var part = parts[i].replace(/^\s+/, '');
+          if (part.indexOf('theme=') !== 0) continue;
+          var value = part.slice(6);
+          if (value === 'dark' || value === 'light') found = value;
+        }
+        return found;
+      }
+      function readStorage() {
+        try {
+          var value = localStorage.getItem('theme');
+          if (value === 'light' || value === 'dark') return value;
+        } catch (e) {}
+        return null;
+      }
+      // Cookie first (shared with chat.efrain.me), then localStorage.
+      function storedTheme() {
+        return readCookie() || readStorage() || '';
+      }
+      function systemTheme() {
+        return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      function writeTheme(next) {
+        var host = location.hostname;
+        var domain = '';
+        if (host === 'efrain.me' || host.endsWith('.efrain.me')) domain = '; Domain=.efrain.me';
+        else if (host === 'frin.bot' || host.endsWith('.frin.bot')) domain = '; Domain=.frin.bot';
+        var secure = location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = 'theme=' + next + '; Path=/; Max-Age=31536000; SameSite=Lax' + domain + secure;
+        try { localStorage.setItem('theme', next); } catch (e) {}
+      }
+      function pinThemeColor(theme) {
+        if (!storedTheme()) return;
+        var color = COLORS[theme];
+        var metas = document.getElementsByName('theme-color');
+        for (var i = 0; i < metas.length; i++) {
+          metas[i].setAttribute('content', color);
+          metas[i].removeAttribute('media');
+        }
+      }
+      function applyTheme(theme, persist) {
+        if (theme !== 'light' && theme !== 'dark') theme = systemTheme();
+        var root = document.documentElement;
+        root.setAttribute('data-theme', theme);
+        root.style.colorScheme = theme;
+        if (persist) writeTheme(theme);
+        pinThemeColor(theme);
+      }
+      function syncTheme() {
+        var saved = storedTheme();
+        applyTheme(saved || systemTheme(), false);
+        // A choice that exists in only one store gets copied to the other.
+        if (saved) writeTheme(saved);
+      }
+      window.__persistTheme = writeTheme;
+      window.siteTheme = {
+        apply: applyTheme,
+        sync: syncTheme,
+        stored: storedTheme,
+        system: systemTheme
+      };
+      document.documentElement.classList.add('js');
+      syncTheme();
+      var scheme = matchMedia('(prefers-color-scheme: dark)');
+      if (scheme.addEventListener) {
+        scheme.addEventListener('change', function () {
+          if (!storedTheme()) syncTheme();
+        });
+      }
+      window.addEventListener('pageshow', syncTheme);
+      window.addEventListener('pagereveal', syncTheme);
+    })();
+  </script>
+  <style>
+    html { color-scheme: light; }
+    html, body { background: #f4f1ea; color: #1a1a1a; }
+    html[data-theme="dark"] { color-scheme: dark; }
+    html[data-theme="dark"], html[data-theme="dark"] body { background: #121010; color: #eae6dc; }
+    @media (prefers-color-scheme: dark) {
+      html:not([data-theme="light"]) { color-scheme: dark; }
+      html:not([data-theme="light"]),
+      html:not([data-theme="light"]) body { background: #121010; color: #eae6dc; }
+    }
+  </style>
   <!--static:head-->
   <title>Efrain Plascencia — Forward-Deployed AI Engineer · 13 years in automotive software</title>
   <meta name="description" content="I build AI tools that real teams use every day, not demos. At GEMMACON North America, an automotive software consultancy, I find the slow, manual parts of how we run the business and replace them with software I write and ship myself, including agentic research pipelines, document automation, and containerized Python services. I start by sitting with the people doing the work to pin down what they actually need, then I build it so they can't easily get it wrong. Before that I spent a decade on connected-vehicle software at Toyota, Mercedes-Benz R&amp;D, Hyundai, and PACCAR, and I still work as the technical liaison on our OEM programs.">
@@ -21,59 +114,10 @@
   <link rel="icon" type="image/png" href="favicon.png?v=2">
   <link rel="apple-touch-icon" href="favicon.png?v=2">
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#1a1a1a">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&family=Tiny5&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=39">
-  <script>
-    (function(){
-      document.documentElement.classList.add('js');
-      // The theme cookie is shared with chat.efrain.me. localStorage stays as the fallback.
-      function readCookie() {
-        var found = null;
-        var parts = (document.cookie || '').split(';');
-        for (var i = 0; i < parts.length; i++) {
-          var part = parts[i].replace(/^\s+/, '');
-          if (part.indexOf('theme=') !== 0) continue;
-          var value = part.slice(6);
-          if (value === 'dark' || value === 'light') found = value;
-        }
-        return found;
-      }
-      function readStorage() {
-        try {
-          var value = localStorage.getItem('theme');
-          if (value === 'dark' || value === 'light') return value;
-        } catch (_) {}
-        return null;
-      }
-      function writeTheme(next) {
-        var host = location.hostname;
-        var domain = '';
-        if (host === 'efrain.me' || host.endsWith('.efrain.me')) domain = '; Domain=.efrain.me';
-        else if (host === 'frin.bot' || host.endsWith('.frin.bot')) domain = '; Domain=.frin.bot';
-        var secure = location.protocol === 'https:' ? '; Secure' : '';
-        document.cookie = 'theme=' + next + '; Path=/; Max-Age=31536000; SameSite=Lax' + domain + secure;
-        try { localStorage.setItem('theme', next); } catch (_) {}
-      }
-      function paint(mode) {
-        if (mode === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
-        else document.documentElement.removeAttribute('data-theme');
-      }
-      function sync() {
-        var saved = readCookie() || readStorage();
-        var mode = saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        paint(mode);
-        if (saved) writeTheme(saved);
-      }
-      // The theme button in app.js stores through this, so both places write the same cookie.
-      window.__persistTheme = writeTheme;
-      sync();
-      // Back/forward can restore this page after chat.efrain.me changed the cookie.
-      window.addEventListener('pageshow', sync);
-    })();
-  </script>
+  <link rel="stylesheet" href="styles.css?v=41">
 </head>
 <body>
 
@@ -644,7 +688,7 @@
 </button>
 
 <script src="resume-data.js?v=13"></script>
-<script src="app.js?v=38"></script>
+<script src="app.js?v=41"></script>
 <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
 </script>

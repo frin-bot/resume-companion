@@ -1,21 +1,25 @@
 :root {
-  --bg: #f4f1ea;
-  --bg-2: #ebe6db;
-  --ink: #1a1a1a;
-  --ink-2: #3a3a3a;
-  --ink-3: #6a6a6a;
-  --ink-4: #a8a5a0;
-  --rule: #2a2a2a33;
+  color-scheme: light;
+  --bg: light-dark(#f4f1ea, #121010);
+  --bg-2: light-dark(#ebe6db, #1a1817);
+  --ink: light-dark(#1a1a1a, #eae6dc);
+  --ink-2: light-dark(#3a3a3a, #c6c2b9);
+  --ink-3: light-dark(#6a6a6a, #8a857d);
+  --ink-4: light-dark(#a8a5a0, #52504c);
+  --rule: light-dark(#2a2a2a33, #eae6dc2e);
 
-  --accent: oklch(0.42 0.12 255);
-  --accent-soft: oklch(0.42 0.12 255 / 0.12);
+  --accent: light-dark(oklch(0.42 0.12 255), oklch(0.68 0.14 255));
+  --accent-soft: light-dark(oklch(0.42 0.12 255 / 0.12), oklch(0.68 0.14 255 / 0.18));
   /* Green used only by the hero chat-status dot when the bot is up. */
-  --chat-online: #1c7c45;
-  --chat-online-soft: color-mix(in srgb, #1c7c45 22%, transparent);
+  --chat-online: light-dark(#1c7c45, #3dcc7a);
+  --chat-online-soft: light-dark(
+    color-mix(in srgb, #1c7c45 22%, transparent),
+    color-mix(in srgb, #3dcc7a 28%, transparent)
+  );
 
-  --map-fill: #e6e1d4;
-  --map-fill-strong: #ccc6b4;
-  --map-stroke: #1a1a1aaa;
+  --map-fill: light-dark(#e6e1d4, #201e1c);
+  --map-fill-strong: light-dark(#ccc6b4, #35322e);
+  --map-stroke: light-dark(#1a1a1aaa, #eae6dcaa);
 
   /* Swiss aesthetic — locked */
   --ff-display: 'Inter Tight', 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -26,26 +30,11 @@
   --pad: clamp(32px, 5vw, 96px);
 }
 
-:root[data-theme="dark"] {
-  --bg: #121010;
-  --bg-2: #1a1817;
-  --ink: #eae6dc;
-  --ink-2: #c6c2b9;
-  --ink-3: #8a857d;
-  --ink-4: #52504c;
-  --rule: #eae6dc2e;
-
-  --accent: oklch(0.68 0.14 255);
-  --accent-soft: oklch(0.68 0.14 255 / 0.18);
-  --chat-online: #3dcc7a;
-  --chat-online-soft: color-mix(in srgb, #3dcc7a 28%, transparent);
-
-  --map-fill: #201e1c;
-  --map-fill-strong: #35322e;
-  --map-stroke: #eae6dcaa;
+/* An explicit choice wins. With no choice, follow the system. */
+:root[data-theme="dark"] { color-scheme: dark; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { color-scheme: dark; }
 }
-
-html { transition: background 200ms ease, color 200ms ease; }
 
 .floating-logo {
   position: fixed;
@@ -154,6 +143,10 @@ html { transition: background 200ms ease, color 200ms ease; }
 .theme-toggle .icon-moon { display: block; }
 :root[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
 :root[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-toggle .icon-sun { display: block; }
+  :root:not([data-theme="light"]) .theme-toggle .icon-moon { display: none; }
+}
 
 ::view-transition-old(root),
 ::view-transition-new(root) {
@@ -352,6 +345,9 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 }
 :root[data-theme="dark"] .hero-name .name-ai {
   color: #000;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .hero-name .name-ai { color: #000; }
 }
 .hero-name .name-ai::before {
   content: "ai";
@@ -729,6 +725,9 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 }
 :root[data-theme="dark"] .card-logo {
   filter: brightness(0) invert(1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .card-logo { filter: brightness(0) invert(1); }
 }
 .card-title {
   font-size: clamp(26px, 3vw, 42px);
