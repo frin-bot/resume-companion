@@ -1254,28 +1254,91 @@ function initLogoEasterEgg() {
     const ua = navigator.userAgent || '';
     return navigator.maxTouchPoints > 1 && /Macintosh/.test(ua);
   }
+  function isIos() {
+    const ua = navigator.userAgent || '';
+    if (/iPhone|iPad|iPod/.test(ua)) return true;
+    return navigator.maxTouchPoints > 1 && /Macintosh/.test(ua);
+  }
+  // iOS hides requestPermission on plain http, including a LAN preview.
+  function permissionRequest() {
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      return () => DeviceOrientationEvent.requestPermission();
+    }
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      return () => DeviceMotionEvent.requestPermission();
+    }
+    return null;
+  }
 
   (function setupTilt() {
     if (typeof DeviceOrientationEvent === 'undefined') return;
-    const needsPermission = typeof DeviceOrientationEvent.requestPermission === 'function';
-    if (!needsPermission) {
+    const askPermission = permissionRequest();
+    const iosHttpPreview = !askPermission && isIos() && !window.isSecureContext;
+    if (!askPermission && !iosHttpPreview) {
       addOrientListener();
       return;
     }
     if (!isHandheld()) return;
     const prompt = document.getElementById('tilt-prompt');
     if (!prompt) return;
-    prompt.hidden = false;
-    const dismiss = () => { prompt.hidden = true; };
-    prompt.addEventListener('click', async () => {
-      try {
-        const r = await DeviceOrientationEvent.requestPermission();
-        if (r === 'granted') addOrientListener();
-      } catch (_) {}
+    const label = prompt.querySelector('.tilt-prompt-label');
+    let dismissed = false;
+
+    const dismiss = () => {
+      if (dismissed) return;
+      dismissed = true;
+      window.removeEventListener('scroll', onScroll);
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.body.classList.remove('tilt-prompt-open');
+      prompt.classList.remove('is-shown');
+      const hide = (event) => {
+        if (event && event.propertyName && event.propertyName !== 'transform') return;
+        prompt.hidden = true;
+        prompt.removeEventListener('transitionend', hide);
+      };
+      prompt.addEventListener('transitionend', hide);
+      // Covers browsers that skip the transition, including reduced motion.
+      setTimeout(hide, 500);
+    };
+
+    const originY = window.scrollY;
+    let scrollArmed = false;
+    const onScroll = () => {
+      if (!scrollArmed) return;
+      if (Math.abs(window.scrollY - originY) > 12) dismiss();
+    };
+    const onPointerDown = (event) => {
+      if (prompt.contains(event.target)) return;
       dismiss();
-    }, { once: true });
-    // Auto-hide after a while if the user ignores it.
-    setTimeout(dismiss, 12000);
+    };
+
+    prompt.hidden = false;
+    document.body.classList.add('tilt-prompt-open');
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => prompt.classList.add('is-shown'));
+    });
+    window.addEventListener('scroll', onScroll, { passive: true });
+    document.addEventListener('pointerdown', onPointerDown);
+    // Safari fires a scroll as the address bar settles. Ignore that.
+    setTimeout(() => { scrollArmed = true; }, 800);
+    prompt.addEventListener('click', async () => {
+      if (dismissed) return;
+      let granted = iosHttpPreview;
+      if (askPermission) {
+        granted = false;
+        try {
+          const result = await askPermission();
+          granted = result === 'granted';
+        } catch (_) {}
+      }
+      if (!granted) {
+        dismiss();
+        return;
+      }
+      addOrientListener();
+      if (label) label.textContent = 'Tilt enabled';
+      setTimeout(dismiss, 1100);
+    });
   })();
 
   function computeBounds() {
