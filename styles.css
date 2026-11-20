@@ -1553,6 +1553,12 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   }
   .year-big { font-size: clamp(36px, 11vw, 56px); }
 
+  /* The card reserves the bottom of the screen. The map ends above it so
+     the pin and its city label are not covered. */
+  .map-box {
+    bottom: calc(45vh + 104px);
+  }
+
   .exp-card {
     top: auto;
     bottom: 88px;

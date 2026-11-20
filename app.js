@@ -727,15 +727,14 @@ function updateScene() {
   const pNextProj = MAP.project(nextItem.coord);
 
   // 3-phase zoom viewBox — per-stop zoom override, fall back to CONFIG.pinZoomTight
-  // On mobile the exp-card occupies the bottom ~half of the screen, so we
-  // push the pin upward in the viewBox to keep it and the incoming arc clear,
-  // and we tighten the zoom so clustered pins (e.g. the SoCal stops) spread
-  // out and become more distinguishable.
+  // On mobile the map box ends above the card. A small upward bias keeps
+  // the pin and its label clear of the year, and the tighter zoom spreads
+  // clustered pins (the SoCal stops) apart.
   const mobileMap = matchMedia('(max-width: 800px)').matches;
   const zoomMult = mobileMap ? 2.75 : 1.0;
   const currentZoom = (currentItem.zoom || CONFIG.pinZoomTight) * zoomMult;
   const nextZoom = (nextItem.zoom || CONFIG.pinZoomTight) * zoomMult;
-  const pinOffset = mobileMap ? [0, -0.40] : [0, 0];
+  const pinOffset = mobileMap ? [0, -0.12] : [0, 0];
   const vbCurTight = MAP.viewBoxFor(pCurProj, currentZoom, pinOffset);
   const vbNextTight = MAP.viewBoxFor(pNextProj, nextZoom, pinOffset);
   const sameCity = pCurProj[0] === pNextProj[0] && pCurProj[1] === pNextProj[1];
@@ -923,7 +922,15 @@ function updateScene() {
     tt.style.display = '';
     tt.style.left = (screen.x - layerRect.left) + 'px';
     tt.style.top = (screen.y - layerRect.top) + 'px';
-    tt.dataset.side = pickTooltipSide(i, activeIdx);
+    // The card covers the bottom of the screen, so the label stays above
+    // the pin. If that still meets the card, lift the label clear of it.
+    tt.dataset.side = mobileTooltip ? 'up' : pickTooltipSide(i, activeIdx);
+    if (mobileTooltip && i === activeIdx) {
+      const cardTop = document.getElementById('exp-card').getBoundingClientRect().top;
+      const box = tt.getBoundingClientRect();
+      const overlap = box.bottom - (cardTop - 12);
+      if (overlap > 0) tt.style.top = (parseFloat(tt.style.top) - overlap) + 'px';
+    }
     tt.classList.toggle('is-current', i === activeIdx);
     // Active tooltip rides the same fade envelope as the card. Disable the
     // CSS transition so per-frame scroll updates don't trail behind.
