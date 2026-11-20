@@ -9,14 +9,39 @@
   <script>
     (function () {
       var COLORS = { light: '#f4f1ea', dark: '#121010' };
-      function storedTheme() {
+      function readCookie() {
+        var found = null;
+        var parts = (document.cookie || '').split(';');
+        for (var i = 0; i < parts.length; i++) {
+          var part = parts[i].replace(/^\s+/, '');
+          if (part.indexOf('theme=') !== 0) continue;
+          var value = part.slice(6);
+          if (value === 'dark' || value === 'light') found = value;
+        }
+        return found;
+      }
+      function readStorage() {
         try {
           var value = localStorage.getItem('theme');
-          return value === 'light' || value === 'dark' ? value : '';
-        } catch (e) { return ''; }
+          if (value === 'light' || value === 'dark') return value;
+        } catch (e) {}
+        return null;
+      }
+      // Cookie first (shared with chat.efrain.me), then localStorage.
+      function storedTheme() {
+        return readCookie() || readStorage() || '';
       }
       function systemTheme() {
         return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      function writeTheme(next) {
+        var host = location.hostname;
+        var domain = '';
+        if (host === 'efrain.me' || host.endsWith('.efrain.me')) domain = '; Domain=.efrain.me';
+        else if (host === 'frin.bot' || host.endsWith('.frin.bot')) domain = '; Domain=.frin.bot';
+        var secure = location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = 'theme=' + next + '; Path=/; Max-Age=31536000; SameSite=Lax' + domain + secure;
+        try { localStorage.setItem('theme', next); } catch (e) {}
       }
       function pinThemeColor(theme) {
         if (!storedTheme()) return;
@@ -32,14 +57,16 @@
         var root = document.documentElement;
         root.setAttribute('data-theme', theme);
         root.style.colorScheme = theme;
-        if (persist) {
-          try { localStorage.setItem('theme', theme); } catch (e) {}
-        }
+        if (persist) writeTheme(theme);
         pinThemeColor(theme);
       }
       function syncTheme() {
-        applyTheme(storedTheme() || systemTheme(), false);
+        var saved = storedTheme();
+        applyTheme(saved || systemTheme(), false);
+        // A choice that exists in only one store gets copied to the other.
+        if (saved) writeTheme(saved);
       }
+      window.__persistTheme = writeTheme;
       window.siteTheme = {
         apply: applyTheme,
         sync: syncTheme,
@@ -90,7 +117,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&family=Tiny5&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=40">
+  <link rel="stylesheet" href="styles.css?v=41">
 </head>
 <body>
 
@@ -661,6 +688,6 @@
 </button>
 
 <script src="resume-data.js?v=13"></script>
-<script src="app.js?v=40"></script>
+<script src="app.js?v=41"></script>
 </body>
 </html>

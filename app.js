@@ -1212,7 +1212,8 @@ function initThemeToggle() {
     }
     document.documentElement.setAttribute('data-theme', next);
     document.documentElement.style.colorScheme = next;
-    try { localStorage.setItem('theme', next); } catch (_) {}
+    if (window.__persistTheme) window.__persistTheme(next);
+    else try { localStorage.setItem('theme', next); } catch (_) {}
   }
 
   btn.addEventListener('click', () => {
