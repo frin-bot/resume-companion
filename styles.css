@@ -1560,12 +1560,14 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
     right: 16px;
     width: auto;
     max-height: 45vh;
-    overflow-y: auto;
+    overflow: hidden;
     transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
     padding: 20px 22px;
     cursor: default;
-    touch-action: auto;
+    /* The page is the only scroller. A finger on the card pans the document. */
+    touch-action: pan-y;
   }
+  .card-bullet-window { overflow: hidden; }
   .card-drag-handle { display: none; }
   .card-title { font-size: clamp(22px, 5.5vw, 30px); }
   .card-logo { width: 36px; height: 36px; margin-bottom: 10px; }
