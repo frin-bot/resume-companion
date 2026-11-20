@@ -1289,16 +1289,31 @@ function initLogoEasterEgg() {
       dismissed = true;
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('pointerdown', onPointerDown);
-      document.body.classList.remove('tilt-prompt-open');
       prompt.classList.remove('is-shown');
-      const hide = (event) => {
-        if (event && event.propertyName && event.propertyName !== 'transform') return;
+      let settled = false;
+      const settlePage = () => {
+        if (settled) return;
+        settled = true;
         prompt.hidden = true;
-        prompt.removeEventListener('transitionend', hide);
+        prompt.removeEventListener('transitionend', onPillLeft);
+        document.body.classList.remove('tilt-prompt-open');
       };
-      prompt.addEventListener('transitionend', hide);
-      // Covers browsers that skip the transition, including reduced motion.
-      setTimeout(hide, 500);
+      const onPillLeft = (event) => {
+        if (event && event.propertyName && event.propertyName !== 'transform') return;
+        settlePage();
+      };
+      prompt.addEventListener('transitionend', onPillLeft);
+      const watch = () => {
+        if (settled) return;
+        if (prompt.getBoundingClientRect().bottom <= 0) {
+          settlePage();
+          return;
+        }
+        requestAnimationFrame(watch);
+      };
+      requestAnimationFrame(watch);
+      const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      setTimeout(settlePage, reduceMotion ? 0 : 1100);
     };
 
     const originY = window.scrollY;
