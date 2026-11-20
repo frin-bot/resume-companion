@@ -75,10 +75,12 @@ html { transition: background 200ms ease, color 200ms ease; }
 }
 .floating-logo img { width: 58px; height: 58px; flex-shrink: 0; display: block; }
 
+/* Drops in from above the logo, then slides back up when dismissed. */
 .tilt-prompt {
   position: fixed;
-  bottom: 20px;
-  right: 144px;
+  top: 96px;
+  left: 50%;
+  z-index: 120;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -93,17 +95,26 @@ html { transition: background 200ms ease, color 200ms ease; }
   text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
-  z-index: 101;
   box-shadow: 0 8px 24px -8px rgba(0,0,0,0.35);
-  animation: tiltPromptNudge 2.2s ease-in-out infinite;
+  transform: translate(-50%, calc(-100% - 120px));
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+.tilt-prompt.is-shown {
+  transform: translate(-50%, 0);
+  pointer-events: auto;
 }
 .tilt-prompt[hidden] { display: none; }
 .tilt-prompt-icon { display: flex; }
 .tilt-prompt-icon svg { width: 18px; height: 18px; display: block; }
-@keyframes tiltPromptNudge {
-  0%, 100% { transform: rotate(0deg); }
-  30% { transform: rotate(6deg); }
-  60% { transform: rotate(-6deg); }
+/* While the pill is on screen, drop the hero row so it is not covered. */
+body.tilt-prompt-open .hero {
+  padding-top: 156px;
+  transition: padding-top 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tilt-prompt,
+  body.tilt-prompt-open .hero { transition: none; }
 }
 
 .theme-toggle,
@@ -1318,7 +1329,9 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 
 /* ============== CONTACT ============== */
 .contact {
-  padding: 100px var(--pad) 60px;
+  /* 92px clears the fixed ask chip and theme buttons (bottom 20px, 48px tall)
+     plus a gap, so the footer text sits above them at the end of the scroll. */
+  padding: 100px var(--pad) calc(92px + env(safe-area-inset-bottom, 0px));
   max-width: var(--maxw);
   margin: 0 auto;
 }
@@ -1488,8 +1501,13 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
   .highlights,
   .projects,
   .certifications,
-  .languages,
-  .contact { padding-top: 56px; padding-bottom: 56px; }
+  .languages { padding-top: 56px; padding-bottom: 56px; }
+  .contact {
+    padding-top: 56px;
+    /* Same clearance as desktop: the fixed ask chip and theme buttons
+       sit 68px up from the viewport bottom. */
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  }
   .competencies { margin-top: 56px; }
   .section-label { padding-bottom: 20px; }
 
@@ -1645,4 +1663,80 @@ html:not(.js) .exp-sticky { display: none; }
   font-family: var(--ff-display);
   font-size: 20px;
   margin: 0 0 4px;
+}
+
+/* Floating link to chat.efrain.me. Bottom-left, clear of the theme and back-to-top buttons. */
+.ask-launcher {
+  position: fixed;
+  left: 24px;
+  bottom: 20px;
+  z-index: 110;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 200px);
+  padding: 12px 16px;
+  border-radius: 0;
+  border: 1px solid var(--rule);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Tiny5", ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 18px 40px -28px rgba(26,26,26,0.55);
+}
+.ask-launcher:hover { border-color: var(--ink); color: var(--ink); }
+.ask-launcher:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Offline: not a link. JS also drops href and sets aria-disabled. */
+.ask-launcher[aria-disabled="true"] {
+  cursor: default;
+  pointer-events: none;
+}
+.ask-dot,
+.ask-label,
+.ask-sep { flex-shrink: 0; }
+.ask-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 0;
+  background: var(--ink-3);
+  image-rendering: pixelated;
+}
+.ask-sep,
+.ask-state { color: var(--ink-3); }
+.ask-launcher .ask-state {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ask-launcher[data-state="checking"] .ask-dot {
+  animation: chat-status-pulse 1.6s ease-out infinite;
+}
+.ask-launcher[data-state="up"] .ask-dot {
+  background: var(--chat-online);
+  box-shadow: 0 0 0 2px var(--chat-online-soft);
+  animation: none;
+}
+.ask-launcher[data-state="up"] .ask-state { color: var(--chat-online); }
+.ask-launcher[data-state="down"] .ask-dot {
+  background: var(--ink-4);
+  box-shadow: none;
+  animation: none;
+}
+@media (max-width: 720px) {
+  .ask-launcher {
+    left: 16px;
+    /* Leave the theme toggle (right 80px, 48px wide) and a small gap. */
+    max-width: calc(100vw - 156px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ask-launcher[data-state="checking"] .ask-dot { animation: none; }
 }

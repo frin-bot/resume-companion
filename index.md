@@ -120,6 +120,8 @@ framework and no build step.
 - Home: <https://www.efrain.me>
 - The hero includes a link labeled "Ask my AI" to <https://chat.efrain.me>.
   That link shows a live status: "Checking…", "Online", or "Offline right now".
+  A floating control in the corner links to the same place and shows the same
+  status. When the assistant is offline, neither link navigates.
 
 ### Highlight
 

@@ -1327,28 +1327,91 @@ function initLogoEasterEgg() {
     const ua = navigator.userAgent || '';
     return navigator.maxTouchPoints > 1 && /Macintosh/.test(ua);
   }
+  function isIos() {
+    const ua = navigator.userAgent || '';
+    if (/iPhone|iPad|iPod/.test(ua)) return true;
+    return navigator.maxTouchPoints > 1 && /Macintosh/.test(ua);
+  }
+  // iOS hides requestPermission on plain http, including a LAN preview.
+  function permissionRequest() {
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      return () => DeviceOrientationEvent.requestPermission();
+    }
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      return () => DeviceMotionEvent.requestPermission();
+    }
+    return null;
+  }
 
   (function setupTilt() {
     if (typeof DeviceOrientationEvent === 'undefined') return;
-    const needsPermission = typeof DeviceOrientationEvent.requestPermission === 'function';
-    if (!needsPermission) {
+    const askPermission = permissionRequest();
+    const iosHttpPreview = !askPermission && isIos() && !window.isSecureContext;
+    if (!askPermission && !iosHttpPreview) {
       addOrientListener();
       return;
     }
     if (!isHandheld()) return;
     const prompt = document.getElementById('tilt-prompt');
     if (!prompt) return;
-    prompt.hidden = false;
-    const dismiss = () => { prompt.hidden = true; };
-    prompt.addEventListener('click', async () => {
-      try {
-        const r = await DeviceOrientationEvent.requestPermission();
-        if (r === 'granted') addOrientListener();
-      } catch (_) {}
+    const label = prompt.querySelector('.tilt-prompt-label');
+    let dismissed = false;
+
+    const dismiss = () => {
+      if (dismissed) return;
+      dismissed = true;
+      window.removeEventListener('scroll', onScroll);
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.body.classList.remove('tilt-prompt-open');
+      prompt.classList.remove('is-shown');
+      const hide = (event) => {
+        if (event && event.propertyName && event.propertyName !== 'transform') return;
+        prompt.hidden = true;
+        prompt.removeEventListener('transitionend', hide);
+      };
+      prompt.addEventListener('transitionend', hide);
+      // Covers browsers that skip the transition, including reduced motion.
+      setTimeout(hide, 500);
+    };
+
+    const originY = window.scrollY;
+    let scrollArmed = false;
+    const onScroll = () => {
+      if (!scrollArmed) return;
+      if (Math.abs(window.scrollY - originY) > 12) dismiss();
+    };
+    const onPointerDown = (event) => {
+      if (prompt.contains(event.target)) return;
       dismiss();
-    }, { once: true });
-    // Auto-hide after a while if the user ignores it.
-    setTimeout(dismiss, 12000);
+    };
+
+    prompt.hidden = false;
+    document.body.classList.add('tilt-prompt-open');
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => prompt.classList.add('is-shown'));
+    });
+    window.addEventListener('scroll', onScroll, { passive: true });
+    document.addEventListener('pointerdown', onPointerDown);
+    // Safari fires a scroll as the address bar settles. Ignore that.
+    setTimeout(() => { scrollArmed = true; }, 800);
+    prompt.addEventListener('click', async () => {
+      if (dismissed) return;
+      let granted = iosHttpPreview;
+      if (askPermission) {
+        granted = false;
+        try {
+          const result = await askPermission();
+          granted = result === 'granted';
+        } catch (_) {}
+      }
+      if (!granted) {
+        dismiss();
+        return;
+      }
+      addOrientListener();
+      if (label) label.textContent = 'Tilt enabled';
+      setTimeout(dismiss, 1100);
+    });
   })();
 
   function computeBounds() {
@@ -1369,7 +1432,8 @@ function initLogoEasterEgg() {
 
   function captureObstacles() {
     obstacles = [];
-    const selectors = ['#theme-toggle', '#back-to-top', '#tilt-prompt'];
+    // The ask chip is wide and sits on the same floor line as the other controls.
+    const selectors = ['#theme-toggle', '#back-to-top', '#tilt-prompt', '#ask-launcher'];
     for (const sel of selectors) {
       const el = document.querySelector(sel);
       if (!el || el.hidden) continue;
@@ -1388,7 +1452,6 @@ function initLogoEasterEgg() {
   function startAnim(reset) {
     if (running) return;
     computeBounds();
-    captureObstacles();
     if (reset) { x = 0; y = 0; vx = 0; vy = 0; angle = 0; firstFloorHit = true; }
     running = true;
     // Only show the shocked face on a fresh fall. When the loop resumes due to
@@ -1400,6 +1463,8 @@ function initLogoEasterEgg() {
       if (!running) return;
       const dt = Math.min((now - last) / 1000, 0.032);
       last = now;
+      // The ask label changes width when the health check resolves.
+      captureObstacles();
 
       // Gravity, tilted if we have orientation input.
       let ax = 0, ay = GRAVITY;
@@ -1439,36 +1504,54 @@ function initLogoEasterEgg() {
       if (x < leftWall) { x = leftWall; vx = Math.abs(vx) * WALL_DAMP; }
       else if (x > rightWall) { x = rightWall; vx = -Math.abs(vx) * WALL_DAMP; }
 
-      // Obstacle collisions (floating buttons). Circle-vs-rect: find closest
-      // point on the obstacle rect to the icon center, and if the gap is
-      // smaller than the icon radius, push out along the normal and reflect.
+      // Obstacle collisions (floating buttons, including the ask chip).
+      // Circle-vs-rect: find the closest point on the obstacle to the icon
+      // center. If the gap is smaller than the icon radius, push out along
+      // the normal and reflect. The ask chip is wide enough that a fast roll
+      // can put the center inside it; then the nearest edge is the way out.
+      let supported = false;
       if (obstacles.length) {
-        const cx = baseCx + x;
-        const cy = baseCy + y;
         for (const obs of obstacles) {
+          const cx = baseCx + x;
+          const cy = baseCy + y;
           const px = Math.max(obs.left, Math.min(cx, obs.right));
           const py = Math.max(obs.top, Math.min(cy, obs.bottom));
           const dx = cx - px;
           const dy = cy - py;
           const dist = Math.hypot(dx, dy);
+          let nx = 0;
+          let ny = 0;
+          let overlap = 0;
           if (dist < iconRadius && dist > 0.001) {
-            const overlap = iconRadius - dist;
-            const nx = dx / dist;
-            const ny = dy / dist;
-            x += nx * overlap;
-            y += ny * overlap;
-            const vDotN = vx * nx + vy * ny;
-            if (vDotN < 0) {
-              const j = (1 + 0.55) * vDotN;
-              vx -= j * nx;
-              vy -= j * ny;
-            }
+            overlap = iconRadius - dist;
+            nx = dx / dist;
+            ny = dy / dist;
+          } else if (dist <= 0.001) {
+            const leftPen = cx - obs.left;
+            const rightPen = obs.right - cx;
+            const topPen = cy - obs.top;
+            const botPen = obs.bottom - cy;
+            const min = Math.min(leftPen, rightPen, topPen, botPen);
+            if (min === topPen) { nx = 0; ny = -1; overlap = iconRadius + topPen; }
+            else if (min === botPen) { nx = 0; ny = 1; overlap = iconRadius + botPen; }
+            else if (min === leftPen) { nx = -1; ny = 0; overlap = iconRadius + leftPen; }
+            else { nx = 1; ny = 0; overlap = iconRadius + rightPen; }
+          }
+          if (!overlap) continue;
+          x += nx * overlap;
+          y += ny * overlap;
+          if (ny < -0.5) supported = true;
+          const vDotN = vx * nx + vy * ny;
+          if (vDotN < 0) {
+            const j = (1 + 0.55) * vDotN;
+            vx -= j * nx;
+            vy -= j * ny;
           }
         }
       }
 
-      // Floor friction
-      if (y >= floor - 0.5 && Math.abs(vy) < 50) {
+      // Friction on the floor, and on top of a button the icon has landed on.
+      if ((y >= floor - 0.5 || supported) && Math.abs(vy) < 80) {
         vx *= Math.pow(FRICTION_PER_SEC, dt);
       }
 
@@ -1478,11 +1561,12 @@ function initLogoEasterEgg() {
 
       applyTransform();
 
-      // Stop when fully settled and no tilt input is driving motion
-      const settled = y >= floor - 0.3 && Math.abs(vy) < STOP_VY && Math.abs(vx) < STOP_VX;
+      // Stop when fully settled and no tilt input is driving motion.
+      // Resting on the ask chip counts: the chip can block the floor.
+      const resting = Math.abs(vy) < STOP_VY && Math.abs(vx) < STOP_VX;
       const tiltIdle = !tiltActive || Math.abs(gamma) < 3;
-      if (settled && tiltIdle) {
-        y = floor;
+      if (resting && tiltIdle && (y >= floor - 0.3 || supported)) {
+        if (y >= floor - 0.3) y = floor;
         applyTransform();
         setFace(FACE_SLEEP);
         running = false;
@@ -1607,7 +1691,8 @@ function initChatStatus() {
   let hasResult = false;
 
   // state is "checking", "up", or "down". Offline drops the href so the
-  // control cannot navigate, even from the keyboard.
+  // control cannot navigate, even from the keyboard. The floating link
+  // uses the same state.
   function setState(state, label) {
     link.dataset.state = state;
     if (statusEl.textContent !== label) statusEl.textContent = label;
@@ -1621,6 +1706,7 @@ function initChatStatus() {
       link.setAttribute('href', CHAT_HOME_URL);
       link.removeAttribute('tabindex');
     }
+    syncAskWidget(state, label);
   }
 
   async function check() {
@@ -1669,6 +1755,14 @@ function initChatStatus() {
       event.preventDefault();
     }
   });
+  const askLink = document.getElementById('ask-launcher');
+  if (askLink) {
+    askLink.addEventListener('click', (event) => {
+      if (askLink.getAttribute('aria-disabled') === 'true' || !askLink.hasAttribute('href')) {
+        event.preventDefault();
+      }
+    });
+  }
 
   function startPolling() {
     clearInterval(pollTimer);
@@ -1692,6 +1786,25 @@ function initChatStatus() {
   setState('checking', 'Checking…');
   check();
   startPolling();
+}
+
+// The corner chip is a second link to the same chat site.
+function syncAskWidget(state, label) {
+  const link = document.getElementById('ask-launcher');
+  if (!link) return;
+  link.dataset.state = state;
+  const statusEl = link.querySelector('.ask-state');
+  if (statusEl && statusEl.textContent !== label) statusEl.textContent = label;
+  const offline = state === 'down';
+  if (offline) {
+    link.setAttribute('aria-disabled', 'true');
+    link.removeAttribute('href');
+    link.tabIndex = -1;
+  } else {
+    link.removeAttribute('aria-disabled');
+    link.setAttribute('href', CHAT_HOME_URL);
+    link.removeAttribute('tabindex');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
