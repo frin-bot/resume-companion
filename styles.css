@@ -796,14 +796,16 @@ h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; letter
 }
 .pin-tt {
   position: absolute;
-  transform: translate(-50%, calc(-100% - 14px));
+  /* --tt-nudge-y slides a callout off the fixed portrait when the
+     preferred side would land on it. */
+  transform: translate(-50%, calc(-100% - 14px + var(--tt-nudge-y, 0px)));
   pointer-events: auto;
   opacity: 0;
   transition: opacity 200ms ease;
 }
-.pin-tt[data-side="down"]  { transform: translate(-50%, 14px); }
-.pin-tt[data-side="left"]  { transform: translate(calc(-100% - 14px), -50%); }
-.pin-tt[data-side="right"] { transform: translate(14px, -50%); }
+.pin-tt[data-side="down"]  { transform: translate(-50%, calc(14px + var(--tt-nudge-y, 0px))); }
+.pin-tt[data-side="left"]  { transform: translate(calc(-100% - 14px), calc(-50% + var(--tt-nudge-y, 0px))); }
+.pin-tt[data-side="right"] { transform: translate(14px, calc(-50% + var(--tt-nudge-y, 0px))); }
 .pin-tt:hover { opacity: 1; }
 .pin-tt.is-current { opacity: 1; }
 .pin-tt-inner {
