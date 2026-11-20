@@ -1290,30 +1290,17 @@ function initLogoEasterEgg() {
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('pointerdown', onPointerDown);
       prompt.classList.remove('is-shown');
-      let settled = false;
-      const settlePage = () => {
-        if (settled) return;
-        settled = true;
-        prompt.hidden = true;
-        prompt.removeEventListener('transitionend', onPillLeft);
-        document.body.classList.remove('tilt-prompt-open');
-      };
-      const onPillLeft = (event) => {
+      let hidden = false;
+      const hide = (event) => {
+        if (hidden) return;
         if (event && event.propertyName && event.propertyName !== 'transform') return;
-        settlePage();
+        hidden = true;
+        prompt.hidden = true;
+        prompt.removeEventListener('transitionend', hide);
       };
-      prompt.addEventListener('transitionend', onPillLeft);
-      const watch = () => {
-        if (settled) return;
-        if (prompt.getBoundingClientRect().bottom <= 0) {
-          settlePage();
-          return;
-        }
-        requestAnimationFrame(watch);
-      };
-      requestAnimationFrame(watch);
+      prompt.addEventListener('transitionend', hide);
       const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-      setTimeout(settlePage, reduceMotion ? 0 : 1100);
+      setTimeout(hide, reduceMotion ? 0 : 1100);
     };
 
     const originY = window.scrollY;
@@ -1328,7 +1315,6 @@ function initLogoEasterEgg() {
     };
 
     prompt.hidden = false;
-    document.body.classList.add('tilt-prompt-open');
     requestAnimationFrame(() => {
       requestAnimationFrame(() => prompt.classList.add('is-shown'));
     });
