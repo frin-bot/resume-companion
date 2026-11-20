@@ -64,17 +64,17 @@
 }
 .floating-logo img { width: 58px; height: 58px; flex-shrink: 0; display: block; }
 
-/* Rises from below the screen and rests over the ask chip and theme controls. */
+/* Rises from below the screen and rests centered, clear of the ask chip and theme controls. */
 .tilt-prompt {
   position: fixed;
-  left: 16px;
-  right: 80px;
-  bottom: 20px;
+  left: 50%;
+  bottom: 80px;
   z-index: 120;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  max-width: calc(100vw - 32px);
   height: 48px;
   padding: 0 18px 0 14px;
   background: var(--ink);
@@ -88,16 +88,13 @@
   white-space: nowrap;
   cursor: pointer;
   box-shadow: 0 8px 24px -8px rgba(0,0,0,0.35);
-  transform: translateY(calc(100% + 32px));
+  transform: translateX(-50%) translateY(calc(100% + 120px));
   transition: transform 900ms cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: none;
 }
 .tilt-prompt.is-shown {
-  transform: translateY(0);
+  transform: translateX(-50%) translateY(0);
   pointer-events: auto;
-}
-@media (min-width: 721px) {
-  .tilt-prompt { left: 24px; }
 }
 .tilt-prompt[hidden] { display: none; }
 .tilt-prompt-icon { display: flex; }
