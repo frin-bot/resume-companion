@@ -243,6 +243,7 @@ const state = {
   tooltipEls: [],
   pinEls: [],
   railStopEls: [],
+  roleOverflow: null, // mobile bullet overflow in px, per stop, per role
 };
 
 function computeAllPinsViewBox() {
@@ -450,43 +451,93 @@ function stopUnits(item) {
   return roles + (continuationYear(item) ? 1 : 0);
 }
 
+// How long a fully shown card sits before the scroll transition starts.
+// Promotion fades and city-to-city departures share this.
+const CARD_HOLD = 0.68;
+// Card fade-in. The first role's bullets stay put until this point.
+const CARD_IN_END = 0.15;
+const MOBILE_TIMELINE = '(max-width: 800px)';
+
+function isMobileTimeline() {
+  return matchMedia(MOBILE_TIMELINE).matches;
+}
+
+// Scroll distance of one weight-1 stop, matching the desktop 150vh rhythm
+// after the sticky viewport is subtracted.
+function baseUnitScrollPx() {
+  const units = TIMELINE.reduce((sum, item) => sum + stopUnits(item), 0);
+  return ((CONFIG.perStopVh / 100) - (1 / units)) * window.innerHeight;
+}
+
+// Per-role weights. Desktop and short mobile roles stay at 1. A mobile role
+// whose bullets are taller than the hold is stretched so that hold is at
+// least as long as the overflow and the text tracks the finger.
+function segmentWeights(item) {
+  const units = stopUnits(item);
+  const even = () => Array(units).fill(1);
+  if (!isMobileTimeline() || !state.roleOverflow) return even();
+  const idx = TIMELINE.indexOf(item);
+  const overflows = state.roleOverflow[idx];
+  if (!overflows) return even();
+  const base = baseUnitScrollPx();
+  if (base <= 0) return even();
+  return overflows.map((overflow, i) => {
+    if (overflow <= 0) return 1;
+    const holdFraction = CARD_HOLD - (i === 0 ? CARD_IN_END : 0);
+    return Math.max(1, overflow / holdFraction / base);
+  });
+}
+
 function locateStop(p) {
   const n = TIMELINE.length;
+  const sums = [];
   let total = 0;
-  for (let i = 0; i < n; i++) total += stopUnits(TIMELINE[i]);
+  for (let i = 0; i < n; i++) {
+    const u = segmentWeights(TIMELINE[i]).reduce((a, b) => a + b, 0);
+    sums.push(u);
+    total += u;
+  }
   const pos = p * total;
   let acc = 0;
   for (let i = 0; i < n; i++) {
-    const u = stopUnits(TIMELINE[i]);
+    const u = sums[i];
     if (pos < acc + u || i === n - 1) {
-      return { activeIdx: i, subProg: clamp((pos - acc) / u, 0, 1) };
+      return { activeIdx: i, subProg: clamp(u > 0 ? (pos - acc) / u : 0, 0, 1) };
     }
     acc += u;
   }
   return { activeIdx: n - 1, subProg: 1 };
 }
 
-// How long a fully shown card sits before the scroll transition starts.
-// Promotion fades and city-to-city departures share this.
-const CARD_HOLD = 0.68;
-
 // A promotion stop spends subProg across every role. Each role holds, then
 // crossfades into the next. The last role holds so the card can leave with
-// the map instead of fading into another title.
+// the map instead of fading into another title. Equal weights reproduce the
+// old even split.
 function promoPhase(item, subProg) {
   const roles = item.promotions;
   if (!roles || roles.length < 2) return null;
   const count = roles.length;
-  const units = stopUnits(item);
-  const roleSpan = count / units;
+  const weights = segmentWeights(item);
+  const total = weights.reduce((a, b) => a + b, 0) || 1;
+  const roleWeight = weights.slice(0, count).reduce((a, b) => a + b, 0);
+  const roleSpan = roleWeight / total;
   if (subProg >= roleSpan - 1e-9 && continuationYear(item) != null) {
-    const trailT = clamp((subProg - roleSpan) / (1 - roleSpan), 0, 1);
+    const trailSpan = (weights[count] || 0) / total;
+    const trailT = trailSpan > 0 ? clamp((subProg - roleSpan) / trailSpan, 0, 1) : 1;
     return { idx: count - 1, local: 1, out: 0, in: 0, count, trailing: true, trailT };
   }
-  const roleProg = subProg / roleSpan;
-  const slot = 1 / count;
-  const idx = Math.min(count - 1, Math.floor(roleProg / slot + 1e-9));
-  const local = clamp((roleProg - idx * slot) / slot, 0, 1);
+  let acc = 0;
+  let idx = 0;
+  let local = 0;
+  for (let i = 0; i < count; i++) {
+    const span = weights[i] / total;
+    if (subProg < acc + span || i === count - 1) {
+      idx = i;
+      local = span > 0 ? clamp((subProg - acc) / span, 0, 1) : 0;
+      break;
+    }
+    acc += span;
+  }
   const fadeStart = CARD_HOLD;
   let out = 0;
   let inn = 0;
@@ -578,9 +629,11 @@ function renderCard(item) {
       <span class="card-sep">·</span>
       <span class="card-city">${item.city}</span>
     </div>
-    <ul class="card-bullets">
-      ${bulletList(item.bullets)}
-    </ul>
+    <div class="card-bullet-window">
+      <ul class="card-bullets">
+        ${bulletList(item.bullets)}
+      </ul>
+    </div>
   `;
 }
 
@@ -626,6 +679,32 @@ function applyPromo(cardEl, phase) {
     state.promoShown = shown;
     cardEl.scrollTop = 0;
   }
+}
+
+// On a phone, page progress slides the active bullet list through the card.
+// The title stays put. Shift is 0 until the card is readable, and the last
+// line is in view when the hold ends and the map is allowed to leave.
+function applyBulletShift(cardEl, item, subProg, phase) {
+  const lists = [...cardEl.querySelectorAll('.card-bullets')];
+  if (!isMobileTimeline()) {
+    lists.forEach(el => { el.style.transform = ''; });
+    return;
+  }
+  if (cardEl.scrollTop) cardEl.scrollTop = 0;
+  const idx = TIMELINE.indexOf(item);
+  const overflows = (state.roleOverflow && state.roleOverflow[idx]) || [];
+  lists.forEach((el, i) => {
+    const overflow = overflows[i] || 0;
+    const active = phase ? i === phase.idx : i === 0;
+    const local = !active ? 0 : phase ? (phase.trailing ? 1 : phase.local) : subProg;
+    const holdStart = i === 0 ? CARD_IN_END : 0;
+    let shift = 0;
+    if (active && overflow > 0) {
+      const t = clamp((local - holdStart) / (CARD_HOLD - holdStart), 0, 1);
+      shift = -overflow * t;
+    }
+    el.style.transform = shift ? `translateY(${Math.round(shift)}px)` : '';
+  });
 }
 
 function updateScene() {
@@ -801,7 +880,7 @@ function updateScene() {
   // Card + active-tooltip opacity share the same scroll-driven envelope:
   // snappy fade-in, then a hold that matches the GEMMACON promotions,
   // then a fade-out as the map starts to leave.
-  const cardInEnd = 0.15;
+  const cardInEnd = CARD_IN_END;
   const cardOutStart = phase ? 0.58 : CARD_HOLD;
   const cardOutEnd = phase ? 0.88 : CARD_HOLD + (1 - CARD_HOLD) * 0.5;
   const inLocal = phase ? (phase.idx === 0 ? phase.local : 1) : subProg;
@@ -873,29 +952,34 @@ function updateScene() {
 
   if (activeIdx !== state.cardIdx) {
     renderCard(currentItem);
-    // Forward into a new stop → start at top; backward → start at bottom so
-    // the user reads the card from where they were headed.
-    cardEl.scrollTop = dir < 0 ? maxScroll() : 0;
+    // Desktop only: land the inner scroller at the end the user is heading
+    // toward. On a phone the page scroll owns the text, so the card stays put.
+    if (!isMobileTimeline()) cardEl.scrollTop = dir < 0 ? maxScroll() : 0;
     state.cardIdx = activeIdx;
   }
   cardEl.style.opacity = String(cardOpacity);
 
-  // Lock the page scroll only when the card is fully visible (held). Using
-  // subProg bounds is cleaner than an opacity threshold — no fade-in slop.
-  const promoHeld = !phase
-    ? false
-    : phase.trailing
-      ? phase.trailT < cardOutStart
-      : phase.idx < phase.count - 1
-        ? phase.out === 0 && phase.in === 0
-        : continuationYear(currentItem) || phase.local < cardOutStart;
-  const newLocked = phase
-    ? cardOpacity > 0.95 && promoHeld
-    : subProg > cardInEnd && subProg < cardOutStart;
-  if (newLocked && !state.cardLocked) {
-    cardEl.scrollTop = dir < 0 ? maxScroll() : 0;
+  // Desktop keeps an inner card scroller. While the card is fully visible,
+  // wheel input reads that scroller before the page advances. Phones never
+  // lock: the same page scroll moves the bullets.
+  if (isMobileTimeline()) {
+    state.cardLocked = false;
+  } else {
+    const promoHeld = !phase
+      ? false
+      : phase.trailing
+        ? phase.trailT < cardOutStart
+        : phase.idx < phase.count - 1
+          ? phase.out === 0 && phase.in === 0
+          : continuationYear(currentItem) || phase.local < cardOutStart;
+    const newLocked = phase
+      ? cardOpacity > 0.95 && promoHeld
+      : subProg > cardInEnd && subProg < cardOutStart;
+    if (newLocked && !state.cardLocked) {
+      cardEl.scrollTop = dir < 0 ? maxScroll() : 0;
+    }
+    state.cardLocked = newLocked;
   }
-  state.cardLocked = newLocked;
 
   // Reset drag offset each time the card transitions from hidden → visible
   // (covers both new-card and same-card-shown-again cases). Don't reset mid-drag.
@@ -913,6 +997,7 @@ function updateScene() {
     li.style.transform = 'none';
   });
   if (phase) applyPromo(cardEl, phase);
+  applyBulletShift(cardEl, currentItem, subProg, phase);
 
   // Rail. Promotion years are their own marks. The active mark follows the
   // year on screen, and the line travels the segment the same way it does
@@ -976,10 +1061,60 @@ function onScroll() {
   });
 }
 
+// How many pixels of each role's bullets sit below the mobile card window.
+// Continuation beats have no bullets, so they keep a zero overflow.
+function measureRoleOverflows() {
+  const card = document.getElementById('exp-card');
+  if (!card) {
+    state.roleOverflow = TIMELINE.map(item => Array(stopUnits(item)).fill(0));
+    return;
+  }
+  const overflows = [];
+  for (const item of TIMELINE) {
+    renderCard(item);
+    const cs = getComputedStyle(card);
+    const maxH = parseFloat(cs.maxHeight);
+    const padBottom = parseFloat(cs.paddingBottom) || 0;
+    const titlesBox = card.querySelector('.card-promo-titles');
+    const titles = [...card.querySelectorAll('.card-promo-titles .card-role')];
+    const bodies = card.querySelector('.card-promo-bodies');
+    const lists = [...card.querySelectorAll('.card-bullets')];
+    const roleOverflow = [];
+    for (let i = 0; i < lists.length; i++) {
+      const list = lists[i];
+      list.style.transform = '';
+      if (titlesBox && titles[i]) titlesBox.style.height = titles[i].offsetHeight + 'px';
+      if (bodies) bodies.style.height = list.scrollHeight + 'px';
+      const cardH = Number.isFinite(maxH) ? Math.min(card.scrollHeight, maxH) : card.clientHeight;
+      const above = list.getBoundingClientRect().top - card.getBoundingClientRect().top;
+      const available = cardH - above - padBottom;
+      roleOverflow.push(Math.max(0, Math.ceil(list.scrollHeight - available)));
+    }
+    while (roleOverflow.length < stopUnits(item)) roleOverflow.push(0);
+    overflows.push(roleOverflow);
+  }
+  state.roleOverflow = overflows;
+  state.cardIdx = -1;
+  state.promoShown = -1;
+}
+
 function setSectionHeight() {
-  // Per-stop scroll length — defines total scrollable span of the experience section
-  const totalVh = TIMELINE.reduce((sum, item) => sum + stopUnits(item), 0) * CONFIG.perStopVh;
-  document.getElementById('experience').style.height = totalVh + 'vh';
+  const exp = document.getElementById('experience');
+  if (!isMobileTimeline()) {
+    state.roleOverflow = null;
+    const totalVh = TIMELINE.reduce((sum, item) => sum + stopUnits(item), 0) * CONFIG.perStopVh;
+    exp.style.height = totalVh + 'vh';
+    if (state.pinEls.length) updateScene();
+    return;
+  }
+  measureRoleOverflows();
+  const base = baseUnitScrollPx();
+  let scrollPx = 0;
+  for (const item of TIMELINE) {
+    for (const w of segmentWeights(item)) scrollPx += w * base;
+  }
+  exp.style.height = Math.ceil(window.innerHeight + scrollPx) + 'px';
+  if (state.pinEls.length) updateScene();
 }
 
 let US_STATES_GEOJSON = null;
@@ -1330,16 +1465,17 @@ function initCardScrollLock() {
   }
 
   sticky.addEventListener('wheel', (e) => {
-    if (!state.cardLocked) return;
+    if (isMobileTimeline() || !state.cardLocked) return;
     if (applyDelta(e.deltaY)) e.preventDefault();
   }, { passive: false });
 
   let lastY = null;
   sticky.addEventListener('touchstart', (e) => {
+    if (isMobileTimeline()) { lastY = null; return; }
     lastY = state.cardLocked && e.touches.length ? e.touches[0].clientY : null;
   }, { passive: true });
   sticky.addEventListener('touchmove', (e) => {
-    if (!state.cardLocked || lastY == null || !e.touches.length) return;
+    if (isMobileTimeline() || !state.cardLocked || lastY == null || !e.touches.length) return;
     const y = e.touches[0].clientY;
     const dy = lastY - y;
     lastY = y;
@@ -1490,6 +1626,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   buildMap();
   updateScene();
   window.addEventListener('scroll', onScroll, { passive: true });
-  window.addEventListener('resize', onScroll);
+  const onResize = () => {
+    setSectionHeight();
+    onScroll();
+  };
+  window.addEventListener('resize', onResize);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(onResize);
 });
 
