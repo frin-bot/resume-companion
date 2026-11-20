@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=23">
+  <link rel="stylesheet" href="styles.css?v=24">
   <script>
     (function(){
       document.documentElement.classList.add('js');
@@ -579,6 +579,52 @@
   </div>
 </section>
 
+<!-- Floating ask panel. Same health states as the hero badge. -->
+<div class="ask-widget" id="ask-widget" data-state="checking">
+  <button class="ask-launcher" id="ask-launcher" type="button" aria-expanded="false" aria-controls="ask-panel">
+    <span class="ask-dot" aria-hidden="true"></span>
+    <span class="ask-label">Ask my AI</span>
+    <span class="ask-sep" aria-hidden="true">·</span>
+    <span class="ask-state" role="status" aria-live="polite">Checking…</span>
+  </button>
+  <section class="ask-panel" id="ask-panel" role="dialog" aria-label="Ask my AI" hidden>
+    <div class="ask-panel-head">
+      <span class="ask-dot" aria-hidden="true"></span>
+      <span class="ask-label">Ask my AI</span>
+      <span class="ask-sep" aria-hidden="true">·</span>
+      <span class="ask-state">Checking…</span>
+      <button class="ask-close" id="ask-close" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg>
+      </button>
+    </div>
+    <p class="ask-intro ask-intro-up">Ask about his work or how to reach him. The assistant talks about Efrain. It is not him.</p>
+    <p class="ask-intro ask-intro-down">The assistant is unavailable. The résumé on this page is still here.</p>
+    <div class="ask-log" id="ask-log"></div>
+    <div class="ask-prompts" id="ask-prompts">
+      <button class="ask-prompt" type="button">
+        <span class="ask-prompt-n">01</span>
+        <span class="ask-prompt-t">Where has he worked</span>
+      </button>
+      <button class="ask-prompt" type="button">
+        <span class="ask-prompt-n">02</span>
+        <span class="ask-prompt-t">How do I reach him</span>
+      </button>
+    </div>
+    <form class="ask-form" id="ask-form">
+      <input class="ask-input" id="ask-input" type="text" name="question" autocomplete="off" placeholder="Ask anything" aria-label="Ask anything">
+      <button class="ask-send" id="ask-send" type="submit" aria-label="Send" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="M13 6l6 6l-6 6" /></svg>
+      </button>
+    </form>
+    <div class="ask-down" id="ask-down">
+      <p class="ask-down-title">Nothing to send while the assistant is down.</p>
+      <p class="ask-down-copy">The page still has the résumé. This note clears when the health check returns up.</p>
+      <button class="ask-retry" id="ask-retry" type="button">Try again</button>
+    </div>
+    <p class="ask-caption">Drawn from his résumé</p>
+  </section>
+</div>
+
 <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode">
   <svg class="ti icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" />
@@ -598,6 +644,6 @@
 </button>
 
 <script src="resume-data.js?v=13"></script>
-<script src="app.js?v=22"></script>
+<script src="app.js?v=23"></script>
 </body>
 </html>

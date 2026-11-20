@@ -1382,7 +1382,8 @@ function initChatStatus() {
   let hasResult = false;
 
   // state is "checking", "up", or "down". Offline drops the href so the
-  // control cannot navigate, even from the keyboard.
+  // control cannot navigate, even from the keyboard. The floating widget
+  // reads the same state and refuses to send while it is not "up".
   function setState(state, label) {
     link.dataset.state = state;
     if (statusEl.textContent !== label) statusEl.textContent = label;
@@ -1396,6 +1397,7 @@ function initChatStatus() {
       link.setAttribute('href', CHAT_HOME_URL);
       link.removeAttribute('tabindex');
     }
+    syncAskWidget(state, label);
   }
 
   async function check() {
@@ -1467,6 +1469,137 @@ function initChatStatus() {
   setState('checking', 'Checking…');
   check();
   startPolling();
+  runHealthCheck = check;
+}
+
+// Latest health result, shared with the floating ask panel.
+let askState = 'checking';
+let askBusy = false;
+let runHealthCheck = () => {};
+
+function syncAskWidget(state, label) {
+  askState = state;
+  const widget = document.getElementById('ask-widget');
+  if (!widget) return;
+  widget.dataset.state = state;
+  widget.querySelectorAll('.ask-state').forEach((el) => {
+    if (el.textContent !== label) el.textContent = label;
+  });
+  const input = document.getElementById('ask-input');
+  const send = document.getElementById('ask-send');
+  const locked = state !== 'up' || askBusy;
+  if (input) input.disabled = locked;
+  if (send) send.disabled = locked;
+  widget.querySelectorAll('.ask-prompt').forEach((button) => {
+    button.disabled = state !== 'up';
+  });
+}
+
+// Opens a short chat in the corner. Questions go to chat.efrain.me.
+// The panel stays usable when the health check is down, but the field
+// is replaced by the offline note and nothing is posted.
+function initAskWidget() {
+  const widget = document.getElementById('ask-widget');
+  const launcher = document.getElementById('ask-launcher');
+  const panel = document.getElementById('ask-panel');
+  const closeBtn = document.getElementById('ask-close');
+  const form = document.getElementById('ask-form');
+  const input = document.getElementById('ask-input');
+  const log = document.getElementById('ask-log');
+  const retry = document.getElementById('ask-retry');
+  if (!widget || !launcher || !panel || !form || !input || !log) return;
+
+  const history = [];
+  const CHAT_URL = 'https://chat.efrain.me/api/chat';
+
+  function setOpen(open) {
+    panel.hidden = !open;
+    launcher.hidden = open;
+    launcher.setAttribute('aria-expanded', open ? 'true' : 'false');
+    document.body.classList.toggle('ask-open', open);
+    if (!open) {
+      launcher.focus();
+      return;
+    }
+    if (askState === 'up') input.focus();
+    else if (closeBtn) closeBtn.focus();
+  }
+
+  function addMessage(kind, text) {
+    const p = document.createElement('p');
+    p.className = kind === 'user' ? 'ask-msg ask-msg-user' : 'ask-msg ask-msg-bot';
+    p.textContent = text;
+    log.appendChild(p);
+    log.scrollTop = log.scrollHeight;
+    return p;
+  }
+
+  async function ask(question) {
+    const q = question.trim();
+    if (!q || askBusy || askState !== 'up') return;
+    askBusy = true;
+    syncAskWidget(askState, widget.querySelector('.ask-state').textContent);
+    input.value = '';
+    addMessage('user', q);
+    const reply = addMessage('bot', '');
+    let full = '';
+    try {
+      const res = await fetch(CHAT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+        body: JSON.stringify({ message: q, history }),
+      });
+      if (!res.ok || !res.body) throw new Error('chat');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const step = await reader.read();
+        if (step.done) break;
+        buffer += decoder.decode(step.value, { stream: true });
+        const chunks = buffer.split('\n\n');
+        buffer = chunks.pop() || '';
+        for (const chunk of chunks) {
+          const line = chunk.split('\n').find((item) => item.startsWith('data: '));
+          if (!line) continue;
+          let data = null;
+          try { data = JSON.parse(line.slice(6)); } catch (_) { data = null; }
+          if (!data) continue;
+          if (data.token) {
+            full += data.token;
+            reply.textContent = full;
+            log.scrollTop = log.scrollHeight;
+          }
+        }
+      }
+      if (!full) throw new Error('empty');
+      history.push({ role: 'user', content: q }, { role: 'assistant', content: full });
+    } catch (_) {
+      reply.textContent = full
+        ? full
+        : 'The assistant didn’t answer. Try again in a moment.';
+    } finally {
+      askBusy = false;
+      syncAskWidget(askState, widget.querySelector('.ask-state').textContent);
+    }
+  }
+
+  launcher.addEventListener('click', () => setOpen(true));
+  if (closeBtn) closeBtn.addEventListener('click', () => setOpen(false));
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !panel.hidden) setOpen(false);
+  });
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    ask(input.value);
+  });
+  widget.querySelectorAll('.ask-prompt').forEach((button) => {
+    button.addEventListener('click', () => {
+      const text = button.querySelector('.ask-prompt-t');
+      if (text) ask(text.textContent);
+    });
+  });
+  if (retry) retry.addEventListener('click', () => runHealthCheck());
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1479,6 +1612,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Start the health check before the map data loads, so a slow
   // GeoJSON fetch cannot block the badge.
   initChatStatus();
+  initAskWidget();
   const [statesData, countiesData] = await Promise.all([
     fetch('us-states.geojson').then(r => r.json()),
     fetch('counties.geojson').then(r => r.json()).catch(() => null),
