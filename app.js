@@ -1247,6 +1247,14 @@ function initLogoEasterEgg() {
       }
     });
   };
+  // Phones and tablets. Desktop Safari still exposes requestPermission,
+  // but a mouse-and-keyboard machine has no accelerometer.
+  function isHandheld() {
+    if (matchMedia('(pointer: coarse)').matches || matchMedia('(hover: none)').matches) return true;
+    const ua = navigator.userAgent || '';
+    return navigator.maxTouchPoints > 1 && /Macintosh/.test(ua);
+  }
+
   (function setupTilt() {
     if (typeof DeviceOrientationEvent === 'undefined') return;
     const needsPermission = typeof DeviceOrientationEvent.requestPermission === 'function';
@@ -1254,6 +1262,7 @@ function initLogoEasterEgg() {
       addOrientListener();
       return;
     }
+    if (!isHandheld()) return;
     const prompt = document.getElementById('tilt-prompt');
     if (!prompt) return;
     prompt.hidden = false;
