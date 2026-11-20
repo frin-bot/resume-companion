@@ -1206,8 +1206,12 @@ function initThemeToggle() {
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function applyTheme(next) {
-    if (next === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
-    else document.documentElement.removeAttribute('data-theme');
+    if (window.siteTheme) {
+      window.siteTheme.apply(next, true);
+      return;
+    }
+    document.documentElement.setAttribute('data-theme', next);
+    document.documentElement.style.colorScheme = next;
     try { localStorage.setItem('theme', next); } catch (_) {}
   }
 

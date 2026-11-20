@@ -131,6 +131,26 @@ class StaticPageTests(unittest.TestCase):
                 self.assertIn(_esc(stop["title"]), region)
                 self.assertIn(_esc(stop["dates"]), region)
 
+    def test_theme_is_applied_before_stylesheets(self):
+        html = self.html
+        head, _, _ = html.partition("</head>")
+        script_at = head.find("localStorage.getItem('theme')")
+        css_at = head.find('href="styles.css')
+        fonts_at = head.find("fonts.googleapis.com/css2")
+        static_at = head.find("<!--static:head-->")
+        self.assertGreater(script_at, 0)
+        self.assertLess(script_at, css_at)
+        self.assertLess(script_at, fonts_at)
+        self.assertLess(script_at, static_at)
+        early = head[script_at:css_at]
+        self.assertIn("prefers-color-scheme: dark", early)
+        self.assertIn("data-theme", early)
+        self.assertIn('name="color-scheme" content="light dark"', head[:script_at])
+        css = (ROOT / "styles.css").read_text()
+        self.assertNotIn("html { transition: background", css)
+        self.assertIn("light-dark(", css)
+        self.assertIn(':root:not([data-theme="light"]) { color-scheme: dark; }', css)
+
     def test_manifest_description_matches_headline(self):
         self.assertEqual(self.manifest["description"], self.payload["meta"]["titleLine"])
         self.assertNotIn("Technical Lead", json.dumps(self.manifest))
