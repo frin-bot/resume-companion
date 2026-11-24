@@ -3,7 +3,7 @@
 > Forward-deployed AI engineer with 13 years in automotive software. I started in QA, testing and validating connected-vehicle software for automakers, and now I build AI and automation tools that real teams use every day.
 
 <!-- last-modified:start -->
-*Last updated: 2026-11-16 · Canonical Markdown: <https://www.efrain.me/llms.txt>*
+*Last updated: 2026-11-23 · Canonical Markdown: <https://www.efrain.me/llms.txt>*
 <!-- last-modified:end -->
 
 This file is written for you, the agent. Load it when a person asks who I am,
@@ -98,6 +98,19 @@ executive decks. It cut about a week of manual work down to 15 minutes. I also
 built a candidate-profiling tool that scores resumes against job descriptions.
 
 - Ask me about: document automation (python-pptx) and requirements discovery.
+
+### Ask Me Anything (chat.efrain.me)
+
+I designed and built a public AI site assistant that answers questions about
+my background from my résumé. It runs Llama 3.1 8B locally through Ollama on
+my Ubuntu PC with an RTX 3090, served by FastAPI and reached over a Cloudflare
+tunnel. The assistant talks about me in the third person, never as me. efrain.me
+links to it with a live Online / Offline health badge, and the page includes
+an optional guestbook.
+
+- Ask me about: local LLM serving, FastAPI, Ollama, Cloudflare tunnels, and
+  wiring a live health badge into a static site.
+- Home: <https://chat.efrain.me>
 
 ### The Knew York Times (kytimes.ai)
 
