@@ -149,7 +149,7 @@ class StaticPageTests(unittest.TestCase):
         self.assertIn("Domain=.efrain.me", early)
         self.assertIn("Domain=.frin.bot", early)
         self.assertIn("prefers-color-scheme: dark", early)
-        self.assertIn('href="styles.css?v=41"', head)
+        self.assertIn('href="styles.css?v=44"', head)
         self.assertIn("data-theme", early)
         self.assertIn('name="color-scheme" content="light dark"', head[:script_at])
         css = (ROOT / "styles.css").read_text()

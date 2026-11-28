@@ -63,6 +63,21 @@
   box-shadow: 0 12px 28px -10px rgba(0,0,0,0.3);
 }
 .floating-logo img { width: 58px; height: 58px; flex-shrink: 0; display: block; }
+/* The wreath hangs past the circle. Drop the portrait so the leaves stay on screen. */
+html:not(.snow-off) .floating-logo { top: 36px; }
+/* Same transform as the avatar, so the frame drops and rolls with it. */
+.floating-logo .logo-wreath {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 114px;
+  height: auto;
+  aspect-ratio: 228 / 234;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 1;
+}
+html.snow-off .floating-logo .logo-wreath { visibility: hidden; }
 
 /* Rises from below the screen and rests centered, clear of the ask chip and theme controls. */
 .tilt-prompt {
@@ -104,7 +119,8 @@
 }
 
 .theme-toggle,
-.back-to-top {
+.back-to-top,
+.snow-toggle {
   position: fixed;
   bottom: 20px;
   width: 48px;
@@ -121,6 +137,7 @@
   transition: background 200ms ease, color 200ms ease, transform 200ms ease, opacity 200ms ease;
   box-shadow: 0 8px 24px -8px rgba(0,0,0,0.35);
 }
+.snow-toggle { right: 140px; }
 .theme-toggle { right: 80px; }
 .back-to-top {
   right: 20px;
@@ -134,11 +151,17 @@
   transform: translateY(0);
 }
 .theme-toggle:hover,
-.back-to-top.visible:hover { background: var(--accent); color: #fff; transform: translateY(-1px); }
+.back-to-top.visible:hover,
+.snow-toggle:hover { background: var(--accent); color: #fff; transform: translateY(-1px); }
 .theme-toggle:focus-visible,
-.back-to-top:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.back-to-top:focus-visible,
+.snow-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .theme-toggle svg,
-.back-to-top svg { width: 20px; height: 20px; display: block; }
+.back-to-top svg,
+.snow-toggle svg { width: 20px; height: 20px; display: block; }
+.snow-toggle[aria-pressed="false"] { opacity: 0.5; }
+.snow-toggle:hover,
+.snow-toggle:focus-visible { opacity: 1; }
 .theme-toggle .icon-sun { display: none; }
 .theme-toggle .icon-moon { display: block; }
 :root[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
@@ -1661,6 +1684,18 @@ html:not(.js) .exp-sticky { display: none; }
   margin: 0 0 4px;
 }
 
+/* Fixed snowfall. Under the logo and the corner controls, and it never takes clicks. */
+.snow {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  z-index: 40;
+}
+.snow[hidden] { display: none; }
+
 /* Floating link to chat.efrain.me. Bottom-left, clear of the theme and back-to-top buttons. */
 .ask-launcher {
   position: fixed;
@@ -1729,8 +1764,8 @@ html:not(.js) .exp-sticky { display: none; }
 @media (max-width: 720px) {
   .ask-launcher {
     left: 16px;
-    /* Leave the theme toggle (right 80px, 48px wide) and a small gap. */
-    max-width: calc(100vw - 156px);
+    /* Leave the snow toggle (right 140px, 48px wide) and a small gap. */
+    max-width: calc(100vw - 216px);
   }
 }
 @media (prefers-reduced-motion: reduce) {
