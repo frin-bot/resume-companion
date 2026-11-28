@@ -74,6 +74,18 @@
         system: systemTheme
       };
       document.documentElement.classList.add('js');
+      // Same rule as the snow toggle: on unless reduced motion, unless saved.
+      (function () {
+        var saved = null;
+        try {
+          var value = localStorage.getItem('snow');
+          if (value === 'on' || value === 'off') saved = value;
+        } catch (e) {}
+        var reduce = false;
+        try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+        var on = saved ? saved === 'on' : !reduce;
+        document.documentElement.classList.toggle('snow-off', !on);
+      })();
       syncTheme();
       var scheme = matchMedia('(prefers-color-scheme: dark)');
       if (scheme.addEventListener) {
@@ -117,12 +129,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&family=Tiny5&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=41">
+  <link rel="stylesheet" href="styles.css?v=44">
 </head>
 <body>
 
 <a class="floating-logo" href="#hero" aria-label="Back to top">
   <img src="comic_standard_transparent.png" alt="" width="58" height="58">
+  <img class="logo-wreath" src="logos/wreath.png" alt="" width="228" height="234" aria-hidden="true">
 </a>
 
 <button class="tilt-prompt" id="tilt-prompt" type="button" hidden>
@@ -679,6 +692,25 @@
   <span class="ask-state">Checking…</span>
 </a>
 
+<canvas class="snow" id="snow" aria-hidden="true"></canvas>
+
+<button class="snow-toggle" id="snow-toggle" type="button" aria-pressed="true" aria-label="Toggle snowfall">
+  <svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M10 4l2 1l2 -1" />
+    <path d="M12 2v6.5l3 1.72" />
+    <path d="M17.928 6.268l.134 2.232l1.866 1.232" />
+    <path d="M20.66 7l-5.629 3.25l.01 3.458" />
+    <path d="M19.928 14.268l-1.866 1.232l-.134 2.232" />
+    <path d="M20.66 17l-5.629 -3.25l-2.99 1.738" />
+    <path d="M14 20l-2 -1l-2 1" />
+    <path d="M12 22v-6.5l-3 -1.72" />
+    <path d="M6.072 17.732l-.134 -2.232l-1.866 -1.232" />
+    <path d="M3.34 17l5.629 -3.25l-.01 -3.458" />
+    <path d="M4.072 9.732l1.866 -1.232l.134 -2.232" />
+    <path d="M3.34 7l5.629 3.25l2.99 -1.738" />
+  </svg>
+</button>
+
 <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode">
   <svg class="ti icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" />
@@ -698,7 +730,7 @@
 </button>
 
 <script src="resume-data.js?v=13"></script>
-<script src="app.js?v=41"></script>
+<script src="app.js?v=43"></script>
 <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
 </script>

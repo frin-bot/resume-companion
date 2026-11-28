@@ -445,9 +445,28 @@ function overlapArea(a, b, pad) {
 // Keep the preferred side when it is clear. Otherwise try the other side of
 // the pin, then slide the callout just past the portrait. Off-screen and
 // card collisions lose to a readable callout.
-function placeTooltip(tt, preferred, cardOpacity) {
+// The portrait plus the wreath, when that frame is showing. Callouts
+// should clear the greenery, not only the 72px circle underneath it.
+function portraitBox() {
   const logo = document.querySelector('.floating-logo');
-  const logoBox = logo ? logo.getBoundingClientRect() : null;
+  if (!logo) return null;
+  const box = logo.getBoundingClientRect();
+  if (box.width < 1 || box.height < 1) return null;
+  const wreath = logo.querySelector('.logo-wreath');
+  if (!wreath) return box;
+  const cs = getComputedStyle(wreath);
+  if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0) return box;
+  const wr = wreath.getBoundingClientRect();
+  if (wr.width < 1 || wr.height < 1) return box;
+  const left = Math.min(box.left, wr.left);
+  const top = Math.min(box.top, wr.top);
+  const right = Math.max(box.right, wr.right);
+  const bottom = Math.max(box.bottom, wr.bottom);
+  return { left, top, right, bottom, width: right - left, height: bottom - top };
+}
+
+function placeTooltip(tt, preferred, cardOpacity) {
+  const logoBox = portraitBox();
   const hasLogo = logoBox && logoBox.width > 1 && logoBox.height > 1;
   const card = document.getElementById('exp-card');
   let cardBox = null;
@@ -993,9 +1012,9 @@ function updateScene() {
       const box = tt.getBoundingClientRect();
       const overlap = box.bottom - (cardTop - 12);
       if (overlap > 0) {
-        const logo = document.querySelector('.floating-logo').getBoundingClientRect();
+        const logo = portraitBox();
         const liftedTop = box.top - overlap;
-        const hitsLogo = liftedTop < logo.bottom + 8 &&
+        const hitsLogo = logo && liftedTop < logo.bottom + 8 &&
           box.right > logo.left && box.left < logo.right &&
           (box.bottom - overlap) > logo.top;
         if (!hitsLogo) {
@@ -1280,7 +1299,7 @@ function initCardDrag() {
 function initLogoEasterEgg() {
   const logo = document.querySelector('.floating-logo');
   if (!logo) return;
-  const img = logo.querySelector('img');
+  const img = logo.querySelector('img:not(.logo-wreath)');
 
   const FACE_STANDARD = 'comic_standard_transparent.png';
   const FACE_SHOCKED  = 'comic_shocked_transparent.png';
@@ -1420,6 +1439,20 @@ function initLogoEasterEgg() {
     });
   })();
 
+  // Extra inset so the wreath, which hangs past the circle, stays on screen.
+  function decorClearance() {
+    const wreath = logo.querySelector('.logo-wreath');
+    if (!wreath) return { side: 6, bottom: 12 };
+    const cs = getComputedStyle(wreath);
+    if (cs.display === 'none' || cs.visibility === 'hidden') return { side: 6, bottom: 12 };
+    const extraX = Math.max(0, (wreath.offsetWidth - logo.offsetWidth) / 2);
+    const extraY = Math.max(0, (wreath.offsetHeight - logo.offsetHeight) / 2);
+    return {
+      side: Math.max(6, Math.ceil(extraX) + 4),
+      bottom: Math.max(12, Math.ceil(extraY) + 8),
+    };
+  }
+
   function computeBounds() {
     const prev = logo.style.transform;
     logo.style.transform = 'translateX(-50%)';
@@ -1427,19 +1460,20 @@ function initLogoEasterEgg() {
     logo.style.transform = prev;
     const vh = window.innerHeight;
     const vw = window.innerWidth;
+    const clear = decorClearance();
     baseCx = rect.left + rect.width / 2;
     baseCy = rect.top + rect.height / 2;
     iconRadius = rect.width / 2;
-    floor = vh - 12 - (rect.top + rect.height);
-    leftWall = -(baseCx - rect.width / 2 - 6);
-    rightWall = vw - baseCx - rect.width / 2 - 6;
+    floor = vh - clear.bottom - (rect.top + rect.height);
+    leftWall = -(baseCx - rect.width / 2 - clear.side);
+    rightWall = vw - baseCx - rect.width / 2 - clear.side;
     rollRadius = iconRadius;
   }
 
   function captureObstacles() {
     obstacles = [];
     // The ask chip is wide and sits on the same floor line as the other controls.
-    const selectors = ['#theme-toggle', '#back-to-top', '#tilt-prompt', '#ask-launcher'];
+    const selectors = ['#snow-toggle', '#theme-toggle', '#back-to-top', '#tilt-prompt', '#ask-launcher'];
     for (const sel of selectors) {
       const el = document.querySelector(sel);
       if (!el || el.hidden) continue;
@@ -1615,6 +1649,14 @@ function initLogoEasterEgg() {
   };
   window.addEventListener('scroll', check, { passive: true });
   window.addEventListener('resize', check);
+  window.addEventListener('snowchange', () => {
+    if (!fallen) return;
+    computeBounds();
+    if (!running && y > floor) {
+      y = floor;
+      applyTransform();
+    }
+  });
   check();
 }
 
@@ -1661,6 +1703,159 @@ function initCardScrollLock() {
     if (applyDelta(dy)) e.preventDefault();
   }, { passive: false });
   sticky.addEventListener('touchend', () => { lastY = null; }, { passive: true });
+}
+
+// Gentle falling snow. One canvas, paused while the tab is hidden.
+// Off stops the loop and clears the canvas. The choice is stored as
+// "on" or "off"; with no choice, reduced motion starts it off.
+function initSnow() {
+  const canvas = document.getElementById('snow');
+  const btn = document.getElementById('snow-toggle');
+  if (!canvas || !btn) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const STORAGE_KEY = 'snow';
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let flakes = [];
+  let raf = 0;
+  let running = false;
+  let enabled = false;
+  let last = 0;
+  let viewW = 0;
+  let viewH = 0;
+
+  function readPref() {
+    try {
+      const value = localStorage.getItem(STORAGE_KEY);
+      if (value === 'on' || value === 'off') return value;
+    } catch (_) {}
+    return null;
+  }
+
+  function writePref(on) {
+    try { localStorage.setItem(STORAGE_KEY, on ? 'on' : 'off'); } catch (_) {}
+  }
+
+  function targetCount(w, h) {
+    const narrow = w < 700;
+    const n = Math.round((w * h) / (narrow ? 42000 : 28000));
+    return Math.max(narrow ? 14 : 28, Math.min(narrow ? 36 : 70, n));
+  }
+
+  function makeFlake(w, h, anywhere) {
+    const r = 1.35 + Math.random() * 1.45;
+    return {
+      x: Math.random() * w,
+      y: anywhere ? Math.random() * h : -r - Math.random() * 24,
+      r,
+      vy: 18 + Math.random() * 22,
+      vx: (Math.random() - 0.5) * 14,
+      phase: Math.random() * Math.PI * 2,
+      sway: 0.35 + Math.random() * 0.55,
+    };
+  }
+
+  function resize() {
+    viewW = window.innerWidth;
+    viewH = window.innerHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.round(viewW * dpr));
+    canvas.height = Math.max(1, Math.round(viewH * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const n = targetCount(viewW, viewH);
+    if (flakes.length > n) flakes.length = n;
+    while (flakes.length < n) flakes.push(makeFlake(viewW, viewH, true));
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, viewW, viewH);
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 0.7;
+    for (let i = 0; i < flakes.length; i++) {
+      const f = flakes[i];
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  function frame(now) {
+    if (!running) return;
+    if (!last) last = now;
+    const dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    const t = now / 1000;
+    for (let i = 0; i < flakes.length; i++) {
+      const f = flakes[i];
+      f.y += f.vy * dt;
+      f.x += (f.vx + Math.sin(t * f.sway + f.phase) * 10) * dt;
+      if (f.y - f.r > viewH) {
+        f.y = -f.r;
+        f.x = Math.random() * viewW;
+      } else if (f.x < -12) {
+        f.x = viewW + 12;
+      } else if (f.x > viewW + 12) {
+        f.x = -12;
+      }
+    }
+    draw();
+    raf = requestAnimationFrame(frame);
+  }
+
+  function start() {
+    if (running || !enabled) return;
+    if (document.visibilityState === 'hidden') return;
+    canvas.hidden = false;
+    running = true;
+    resize();
+    last = 0;
+    raf = requestAnimationFrame(frame);
+  }
+
+  function pause() {
+    running = false;
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+    last = 0;
+  }
+
+  function stop() {
+    pause();
+    flakes = [];
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    canvas.hidden = true;
+  }
+
+  function setEnabled(on, save) {
+    enabled = on;
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    document.documentElement.classList.toggle('snow-off', !on);
+    window.dispatchEvent(new CustomEvent('snowchange'));
+    if (save) writePref(on);
+    if (on) start();
+    else stop();
+  }
+
+  const saved = readPref();
+  setEnabled(saved ? saved === 'on' : !reduceMotion, false);
+
+  btn.addEventListener('click', () => setEnabled(!enabled, true));
+
+  document.addEventListener('visibilitychange', () => {
+    if (!enabled) return;
+    if (document.visibilityState === 'hidden') pause();
+    else start();
+  });
+
+  window.addEventListener('resize', () => {
+    if (!running) return;
+    resize();
+    draw();
+  });
 }
 
 function initBackToTop() {
@@ -1815,6 +2010,7 @@ function syncAskWidget(state, label) {
 
 document.addEventListener('DOMContentLoaded', async () => {
   initThemeToggle();
+  initSnow();
   initBackToTop();
   initCardDrag();
   initCareerGantt();
